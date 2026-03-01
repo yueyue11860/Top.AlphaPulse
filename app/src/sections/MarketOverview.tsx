@@ -89,7 +89,25 @@ export function MarketOverview() {
   const loading = isLoading && !data;
   const refreshing = isValidating && !!data;
 
-  const indices = data?.indices || [];
+  const targetOrder = ['上证指数', '深证成指', '创业板指', '科创50', '北证50'];
+  const indices = useMemo(() => {
+    if (!data?.indices) return [];
+    return [...data.indices].sort((a, b) => {
+      const indexA = targetOrder.indexOf(a.name);
+      const indexB = targetOrder.indexOf(b.name);
+      
+      // 如果两个都在目标列表中，按列表顺序排序
+      if (indexA !== -1 && indexB !== -1) {
+        return indexA - indexB;
+      }
+      // 如果 a 在列表中，b 不在，a 排在前面
+      if (indexA !== -1) return -1;
+      // 如果 b 在列表中，a 不在，b 排在前面
+      if (indexB !== -1) return 1;
+      // 如果都不在列表中，保持原逻辑或按名称字母顺序等
+      return 0;
+    });
+  }, [data?.indices]);
   const sectors = data?.sectors || [];
   const limitUpList = data?.limitUpList || [];
   const upDownDistribution = data?.upDownDistribution || null;
