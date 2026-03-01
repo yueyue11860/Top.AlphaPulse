@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "embla-carousel-react": "^8.6.0",
+    "input-otp": "^1.4.2",
+    "react-hook-form": "^7.71.2",
+    "recharts": "^3.7.0"
+  }
+}
