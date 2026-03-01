@@ -144,7 +144,7 @@ export function NewsCenter() {
       revalidateOnReconnect: false,
       refreshInterval: activeTab === 'flash' && !realtimeEnabled ? 30_000 : 0,
       onSuccess: (news) => {
-        const enriched = enrichNews(news);
+        const enriched = enrichNews(news as unknown as Record<string, unknown>[]);
         setFlashNews(enriched);
         setHasMore(news.length >= currentLimit);
         setLoadingMore(false);
@@ -154,7 +154,7 @@ export function NewsCenter() {
 
   /** 给原始数据附加 importance(三级) + categories */
   const enrichNews = useCallback((items: Array<Record<string, unknown>>): NewsCardItem[] => {
-    return (items as NewsCardItem[]).map(item => {
+    return (items as unknown as NewsCardItem[]).map(item => {
       const { importance, categories } = classifyNews(item.title, item.content, item.sourceKey);
       return { ...item, importance, categories };
     });

@@ -1,4 +1,4 @@
-import type { IndexData, StockBasic, SectorData, LimitUpData, MarketSentiment, DailyData, MoneyFlowData } from '@/types';
+import type { IndexData, StockBasic, SectorData, LimitUpData, MarketSentiment, MoneyFlowData } from '@/types';
 import {
   supabaseStock,
   supabaseNews,

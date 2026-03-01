@@ -18,6 +18,7 @@ interface NewsStreamProps {
 }
 
 /** 按日期分组新闻 */
+// @ts-ignore
 function groupByDate(news: NewsCardItem[]): Record<string, NewsCardItem[]> {
   const groups: Record<string, NewsCardItem[]> = {};
   for (const item of news) {

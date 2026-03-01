@@ -115,7 +115,7 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
             return prices[idx] >= prices[idx - 1] ? colors.upVol : colors.downVol;
         });
 
-        const option: echarts.EChartsOption = {
+        const option: echarts.EChartsCoreOption = {
             backgroundColor: 'transparent',
             // ========== 图表顶部信息（东方财富风格） ==========
             graphic: stockName ? [
