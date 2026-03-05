@@ -35,7 +35,7 @@ interface NewsSidebarProps {
 
 // 数据源分组
 const SOURCE_GROUPS: { label: string; keys: string[] }[] = [
-  { label: '大V渠道', keys: ['snowball_influencer', 'weibo_influencer'] },
+  { label: '大V渠道', keys: ['snowball_influencer', 'weibo_influencer', 'twitter_influencer', 'wechat_influencer'] },
   {
     label: '主流平台',
     keys: [
@@ -50,6 +50,8 @@ const SOURCE_GROUPS: { label: string; keys: string[] }[] = [
 const dotColorMap: Record<string, string> = {
   snowball_influencer: 'bg-blue-500',
   weibo_influencer: 'bg-orange-500',
+  wechat_influencer: 'bg-green-500',
+  twitter_influencer: 'bg-sky-500',
   cls: 'bg-red-400',
   eastmoney: 'bg-teal-400',
   jin10: 'bg-yellow-400',

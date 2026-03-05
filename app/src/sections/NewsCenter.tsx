@@ -30,6 +30,8 @@ import type { NewsCardItem } from '@/components/news/NewsItemCard';
 const TABLE_TO_SOURCE_KEY: Record<string, string> = {
   'snowball_influencer_tb': 'snowball_influencer',
   'weibo_influencer_tb': 'weibo_influencer',
+  'wechat_influencer_tb': 'wechat_influencer',
+  'nitter_twitter_influencer_tb': 'twitter_influencer',
   'clscntelegraph_tb': 'cls',
   'eastmoney724_tb': 'eastmoney',
   'jin10data724_tb': 'jin10',
@@ -202,6 +204,7 @@ export function NewsCenter() {
         importance,
         categories,
         images: parsedImages,
+        author: newData.author as string | undefined,
       };
 
       if (selectedSource !== 'all' && sourceKey !== selectedSource) return;
@@ -244,6 +247,11 @@ export function NewsCenter() {
     // 先按 7 天筛选
     let result = flashNews.filter(n => n.display_time >= sevenDaysAgoTs);
 
+    // 来源筛选（兜底，避免切换来源时短暂出现其他来源数据）
+    if (selectedSource !== 'all') {
+      result = result.filter(n => n.sourceKey === selectedSource);
+    }
+
     // 关键词搜索
     if (searchKeyword.trim()) {
       const kw = searchKeyword.trim().toLowerCase();
@@ -265,7 +273,7 @@ export function NewsCenter() {
     }
 
     return result;
-  }, [flashNews, searchKeyword, importanceFilter, categoryFilter]);
+  }, [flashNews, selectedSource, searchKeyword, importanceFilter, categoryFilter]);
 
   // ── 加载更多 ──
   const loadMore = useCallback(() => {

@@ -28,6 +28,7 @@ export function NewsDetailModal({ news, onClose, onZoomImage }: NewsDetailModalP
           <div className="flex items-center gap-2 flex-wrap">
             <Badge className={cn('text-xs', sourceColorMap[news.sourceKey] || 'bg-muted text-muted-foreground')}>
               {news.source}
+              {news.author && <span className="ml-1 opacity-90">· {news.author}</span>}
             </Badge>
             <span className="text-sm text-muted-foreground">{news.date} {news.time}</span>
             <Badge className={cn('text-xs', impCfg.color)}>

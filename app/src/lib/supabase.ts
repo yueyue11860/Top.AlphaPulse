@@ -116,6 +116,8 @@ export const NEWS_TABLES = [
   // 大V渠道 - 优先级高
   'snowball_influencer_tb',  // 雪球大V
   'weibo_influencer_tb',     // 微博大V
+  'wechat_influencer_tb',    // 微信公众号
+  'nitter_twitter_influencer_tb', // 推特大V
 
   // 主流财经平台
   'clscntelegraph_tb',       // 财联社
@@ -140,6 +142,8 @@ export const NEWS_TABLES = [
 export const FEATURED_NEWS_TABLES = [
   'snowball_influencer_tb',
   'weibo_influencer_tb',
+  'wechat_influencer_tb',
+  'nitter_twitter_influencer_tb',
   'clscntelegraph_tb',
   'eastmoney724_tb',
 ];

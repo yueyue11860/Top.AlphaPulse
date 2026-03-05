@@ -1227,6 +1227,8 @@ export const NEWS_SOURCES = [
   // 重要大V渠道 - 放在最前面的醒目位置
   { key: 'snowball_influencer', name: '雪球大V', tableName: 'snowball_influencer_tb', color: '#3B82F6', icon: '❄️', featured: true },
   { key: 'weibo_influencer', name: '微博大V', tableName: 'weibo_influencer_tb', color: '#FF5722', icon: '🔥', featured: true },
+  { key: 'twitter_influencer', name: '推特大V', tableName: 'nitter_twitter_influencer_tb', color: '#1DA1F2', icon: '🐦', featured: true },
+  { key: 'wechat_influencer', name: '微信公众号', tableName: 'wechat_influencer_tb', color: '#07C160', icon: '💬', featured: true },
 
   // 主流财经资讯平台
   { key: 'cls', name: '财联社', tableName: 'clscntelegraph_tb', color: '#FF6B6B' },
@@ -1255,6 +1257,7 @@ type NewsRow = {
   content: string;
   display_time: number;
   images: unknown; // jsonb 可能是字符串或已解析的数组
+  author?: string;
 };
 
 /** 新闻输出类型 */
@@ -1269,6 +1272,7 @@ export interface NewsItem {
   date: string;
   importance: 'high' | 'normal';
   images?: string[];
+  author?: string;
 }
 
 /**
@@ -1345,9 +1349,14 @@ async function fetchFromSource(
   signal?: AbortSignal
 ): Promise<NewsItem[]> {
   try {
+    const isInfluencer = source.tableName.includes('influencer');
+    const selectFields = isInfluencer 
+      ? 'id, title, content, display_time, images, author' 
+      : 'id, title, content, display_time, images';
+
     let query = supabaseNews
       .from(source.tableName)
-      .select('id, title, content, display_time, images');
+      .select(selectFields);
 
     if (signal) {
       query = query.abortSignal(signal);
@@ -1383,6 +1392,7 @@ async function fetchFromSource(
         date,
         importance: getNewsImportance(item.title || '', item.content || ''),
         images: parseImages(item.images),
+        author: item.author,
       };
     });
   } catch (err) {

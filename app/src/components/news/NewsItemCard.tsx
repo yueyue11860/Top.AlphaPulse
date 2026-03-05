@@ -8,6 +8,8 @@ import { HighlightText } from './NewsSearchBar';
 export const sourceColorMap: Record<string, string> = {
   snowball_influencer: 'bg-blue-500 text-white border-blue-600',
   weibo_influencer: 'bg-orange-500 text-white border-orange-600',
+  wechat_influencer: 'bg-green-600 text-white border-green-700',
+  twitter_influencer: 'bg-sky-500 text-white border-sky-600',
   cls: 'bg-red-100 text-red-700 border-red-200',
   eastmoney: 'bg-teal-100 text-teal-700 border-teal-200',
   jin10: 'bg-yellow-100 text-yellow-700 border-yellow-200',
@@ -37,6 +39,7 @@ export interface NewsCardItem {
   importance: NewsImportance;
   categories: string[];
   images?: string[];
+  author?: string; // 新老大V数据的作者字段
 }
 
 interface NewsItemCardProps {
@@ -115,13 +118,14 @@ export function NewsItemCard({ news, searchKeyword = '', onSelect, onZoomImage, 
           </div>
         )}
 
-        {/* 底部标签行：来源 + 分类 + 图片数 */}
+        {/* 底部标签行：来源 + 作者 + 分类 + 图片数 */}
         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
           <Badge
             variant="outline"
             className={cn('text-xs', sourceColorMap[news.sourceKey] || 'bg-muted text-muted-foreground')}
           >
             {news.source}
+            {news.author && <span className="ml-1 opacity-90">· {news.author}</span>}
           </Badge>
           {news.categories.map((cat) => {
             const cfg = CATEGORY_CONFIG[cat as NewsCategory];

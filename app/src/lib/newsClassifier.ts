@@ -78,7 +78,12 @@ const CATEGORY_KEYWORDS: Record<NewsCategory, string[]> = {
   ],
 };
 
-const INFLUENCER_SOURCE_KEYS = new Set(['snowball_influencer', 'weibo_influencer']);
+const INFLUENCER_SOURCE_KEYS = new Set([
+  'snowball_influencer', 
+  'weibo_influencer', 
+  'wechat_influencer', 
+  'twitter_influencer'
+]);
 
 // ── 分类函数 ────────────────────────────────────────────
 
