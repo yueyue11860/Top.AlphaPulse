@@ -45,6 +45,11 @@ interface BacktestDetail {
   daily: PickerBacktestDailyRow[];
 }
 
+interface UnreadAlertSummary {
+  unreadCount: number;
+  logs: PickerAlertLogRow[];
+}
+
 function normalizeDate(date: string | null): string | null {
   if (!date) return null;
   if (date.length === 8 && !date.includes('-')) {
@@ -466,5 +471,36 @@ export async function markAlertLogRead(logId: number): Promise<boolean> {
   } catch (error) {
     logger.warn('更新预警日志状态失败:', error);
     return false;
+  }
+}
+
+export async function fetchUnreadAlertSummary(limit = 8): Promise<UnreadAlertSummary> {
+  try {
+    const [{ count, error: countError }, { data, error: dataError }] = await Promise.all([
+      supabaseStock
+        .from('picker_alert_log')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_read', false),
+      supabaseStock
+        .from('picker_alert_log')
+        .select('*')
+        .eq('is_read', false)
+        .order('created_at', { ascending: false })
+        .limit(limit),
+    ]);
+
+    if (countError) throw countError;
+    if (dataError) throw dataError;
+
+    return {
+      unreadCount: count ?? 0,
+      logs: (data ?? []) as PickerAlertLogRow[],
+    };
+  } catch (error) {
+    logger.warn('获取未读预警摘要失败:', error);
+    return {
+      unreadCount: 0,
+      logs: [],
+    };
   }
 }

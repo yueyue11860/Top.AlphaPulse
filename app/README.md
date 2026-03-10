@@ -128,6 +128,29 @@ SUPABASE_STOCK_SERVICE_ROLE_KEY=your-stock-service-role-key-here
 
 3. 若后续接入定时任务，可直接定时触发 `/api/picker-alert/run`，无需改动前端。
 
+## 自动预警调度
+
+项目已在 `vercel.json` 中预置工作日两次的定时扫描：
+
+1. `07:30 UTC` 执行一次全量预警扫描。
+2. `12:00 UTC` 再执行一次补扫。
+
+部署时需要额外配置：
+
+```env
+CRON_SECRET=your-cron-shared-secret
+```
+
+说明：
+
+1. Vercel Cron 会以 `GET /api/picker-alert/run` 方式触发服务端扫描。
+2. 该接口在定时模式下要求 `Authorization: Bearer <CRON_SECRET>`，避免被外部随意调用。
+3. 前端“立即扫描”仍走手动 `POST` 链路，不受 `CRON_SECRET` 限制。
+
+## 发布说明
+
+本轮版本发布说明见：`../doc/发布说明_20260310.md`
+
 ## 📁 项目结构
 
 ```

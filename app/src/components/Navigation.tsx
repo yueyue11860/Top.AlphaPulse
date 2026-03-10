@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import useSWR from 'swr';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { searchStocks } from '@/services/stockDetailService';
+import { fetchUnreadAlertSummary, markAlertLogRead } from '@/services/stockPickerPersistenceService';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import {
   Search,
   Home,
@@ -15,7 +19,8 @@ import {
   User,
   Menu,
   X,
-  Trophy
+  Trophy,
+  Bell,
 } from 'lucide-react';
 
 interface NavigationProps {
@@ -42,12 +47,25 @@ interface StockSearchResult {
 
 export function Navigation({ activeTab, onTabChange, onSelectStock }: NavigationProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAlertSheetOpen, setIsAlertSheetOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { data: unreadAlertSummary, mutate: mutateAlertSummary } = useSWR(
+    'picker:unread-alert-summary',
+    () => fetchUnreadAlertSummary(),
+    {
+      dedupingInterval: 30_000,
+      refreshInterval: 60_000,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+    }
+  );
+  const unreadAlertCount = unreadAlertSummary?.unreadCount ?? 0;
+  const unreadAlertLogs = unreadAlertSummary?.logs ?? [];
 
   // Debounced search
   const handleSearch = useCallback((query: string) => {
@@ -91,6 +109,18 @@ export function Navigation({ activeTab, onTabChange, onSelectStock }: Navigation
     setShowDropdown(false);
     setSearchResults([]);
     onSelectStock?.(result.ts_code);
+  };
+
+  const handleOpenScreenerFromAlert = () => {
+    setIsAlertSheetOpen(false);
+    onTabChange('screener');
+  };
+
+  const handleMarkAlertRead = async (logId: number) => {
+    const updated = await markAlertLogRead(logId);
+    if (updated) {
+      await mutateAlertSummary();
+    }
   };
 
   const searchDropdown = showDropdown && (
@@ -167,6 +197,19 @@ export function Navigation({ activeTab, onTabChange, onSelectStock }: Navigation
               {searchDropdown}
             </div>
             <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative text-muted-foreground hover:text-foreground"
+              onClick={() => setIsAlertSheetOpen(true)}
+            >
+              <Bell className="w-5 h-5" />
+              {unreadAlertCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-red-500 px-1 text-[10px] leading-4 text-white">
+                  {unreadAlertCount > 99 ? '99+' : unreadAlertCount}
+                </span>
+              )}
+            </Button>
             <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
               <User className="w-5 h-5" />
             </Button>
@@ -225,6 +268,47 @@ export function Navigation({ activeTab, onTabChange, onSelectStock }: Navigation
           </div>
         )}
       </div>
+      <Sheet open={isAlertSheetOpen} onOpenChange={setIsAlertSheetOpen}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>预警通知</SheetTitle>
+            <SheetDescription>
+              {unreadAlertCount > 0 ? `当前有 ${unreadAlertCount} 条未读预警` : '当前没有未读预警'}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-3 px-1 pb-6">
+            <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">智能选股</Badge>
+                <span>定时扫描和手动扫描产生的新预警都会出现在这里</span>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleOpenScreenerFromAlert}>
+                进入工作台
+              </Button>
+            </div>
+            {unreadAlertLogs.length === 0 ? (
+              <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+                暂无未读预警。后续新的扫描命中会自动在导航栏显示红点。
+              </div>
+            ) : (
+              unreadAlertLogs.map((log) => (
+                <div key={log.id} className="rounded-lg border border-border bg-background p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="font-medium text-foreground">{log.alert_title ?? `${log.name ?? log.ts_code} 触发预警`}</div>
+                      <div className="text-xs text-muted-foreground">{log.trade_date} · {log.ts_code}</div>
+                      {log.alert_content && <div className="text-xs text-muted-foreground">{log.alert_content}</div>}
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => void handleMarkAlertRead(log.id)}>
+                      已读
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </nav>
   );
 }

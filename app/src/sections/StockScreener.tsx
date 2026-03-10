@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { cn, formatLargeNumber, formatNumber, formatVolumeHand, getChangeColor } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -77,17 +77,8 @@ import {
   Eye,
   Siren,
 } from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+
+const BacktestDetailCharts = lazy(() => import('@/components/stock/BacktestDetailCharts'));
 
 interface FilterCondition {
   id: string;
@@ -1544,36 +1535,12 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
                 <div className="rounded-lg bg-muted/40 p-3">平均卖出收益 {cycleReturnSeries.length > 0 ? (cycleReturnSeries.reduce((sum, item) => sum + item.returnPct, 0) / cycleReturnSeries.length).toFixed(2) : '0.00'}%</div>
                 <div className="rounded-lg bg-muted/40 p-3">胜率 {cycleReturnSeries.length > 0 ? ((cycleReturnSeries.filter((item) => item.returnPct > 0).length / cycleReturnSeries.length) * 100).toFixed(1) : '0.0'}%</div>
               </div>
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="mb-3 font-medium text-foreground">累计收益曲线</div>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={backtestEquitySeries}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
-                        <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                        <YAxis tick={{ fontSize: 12 }} width={52} />
-                        <Tooltip formatter={(value) => [`${value}`, '累计收益%']} />
-                        <Line type="monotone" dataKey="cumulativeReturn" stroke="#0f766e" strokeWidth={2} dot={false} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="mb-3 font-medium text-foreground">卖出收益分布</div>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={cycleReturnSeries.slice(0, 12)}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
-                        <YAxis tick={{ fontSize: 12 }} width={52} />
-                        <Tooltip formatter={(value) => [`${value}%`, '收益率']} />
-                        <Bar dataKey="returnPct" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
+              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                <BacktestDetailCharts
+                  equitySeries={backtestEquitySeries}
+                  cycleReturnSeries={cycleReturnSeries}
+                />
+              </Suspense>
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className="rounded-lg border border-border bg-muted/20 p-3">
                 <div className="mb-3 font-medium text-foreground">交易记录</div>

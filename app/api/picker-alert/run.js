@@ -3,7 +3,20 @@ import { createClient } from '@supabase/supabase-js';
 function getEnv() {
   const url = process.env.VITE_SUPABASE_STOCK_URL;
   const key = process.env.SUPABASE_STOCK_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_STOCK_ANON_KEY;
-  return { url, key };
+  const cronSecret = process.env.CRON_SECRET;
+  return { url, key, cronSecret };
+}
+
+function getHeader(req, headerName) {
+  const value = req.headers?.[headerName];
+  if (Array.isArray(value)) return value[0] || '';
+  return value || '';
+}
+
+function isAuthorizedCronRequest(req, cronSecret) {
+  if (!cronSecret) return false;
+  const authorization = getHeader(req, 'authorization');
+  return authorization === `Bearer ${cronSecret}`;
 }
 
 function toArray(value) {
@@ -131,19 +144,32 @@ function evaluateRule(rule, latestRows, previousRows) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
 
-  const { url, key } = getEnv();
+  const { url, key, cronSecret } = getEnv();
   if (!url || !key) {
     res.status(503).json({ error: 'Stock Supabase server credentials are not configured' });
     return;
   }
 
+  const isCronMode = req.method === 'GET';
+  if (isCronMode) {
+    if (!cronSecret) {
+      res.status(503).json({ error: 'CRON_SECRET is not configured' });
+      return;
+    }
+
+    if (!isAuthorizedCronRequest(req, cronSecret)) {
+      res.status(401).json({ error: 'Unauthorized cron request' });
+      return;
+    }
+  }
+
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const strategyId = typeof req.body?.strategyId === 'number' ? req.body.strategyId : null;
+  const strategyId = !isCronMode && typeof req.body?.strategyId === 'number' ? req.body.strategyId : null;
 
   try {
     let ruleQuery = supabase.from('picker_alert_rule').select('*').eq('is_active', true);
@@ -223,6 +249,7 @@ export default async function handler(req, res) {
     }
 
     res.status(200).json({
+      mode: isCronMode ? 'cron' : 'manual',
       scannedRules: (rules ?? []).length,
       triggeredRules,
       insertedLogs,

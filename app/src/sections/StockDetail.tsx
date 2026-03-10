@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react';
+import { Suspense, lazy, useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { KLineChart } from '@/components/chart/KLineChart';
-import { TimeSeriesChart } from '@/components/chart/TimeSeriesChart';
 import { StockListTable } from '@/components/stock/StockListTable';
 import { cn, formatNumber, getChangeColor, formatLargeNumber, formatVolumeHand } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -39,6 +37,9 @@ import type {
   ResearchReportDetail,
   ResearchReportItem,
 } from '@/types';
+
+const KLineChart = lazy(() => import('@/components/chart/KLineChart').then((m) => ({ default: m.KLineChart })));
+const TimeSeriesChart = lazy(() => import('@/components/chart/TimeSeriesChart').then((m) => ({ default: m.TimeSeriesChart })));
 
 interface StockDetailData {
   ts_code: string;
@@ -406,24 +407,26 @@ function StockDetailView({
           </div>
 
           {/* 图表内容 */}
-          {chartType === 'timeseries' ? (
-            <TimeSeriesChart
-              data={timeSeriesData}
-              preClose={stockData.pre_close || 0}
-              className="h-96"
-              stockName={stockData.name}
-              stockCode={stockData.ts_code}
-              tradeDate={stockData.trade_date}
-            />
-          ) : (
-            kLineData.length > 0 ? (
-              <KLineChart data={kLineData} className="h-96" />
+          <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+            {chartType === 'timeseries' ? (
+              <TimeSeriesChart
+                data={timeSeriesData}
+                preClose={stockData.pre_close || 0}
+                className="h-96"
+                stockName={stockData.name}
+                stockCode={stockData.ts_code}
+                tradeDate={stockData.trade_date}
+              />
             ) : (
-              <div className="h-96 flex items-center justify-center text-muted-foreground">
-                暂无K线数据
-              </div>
-            )
-          )}
+              kLineData.length > 0 ? (
+                <KLineChart data={kLineData} className="h-96" />
+              ) : (
+                <div className="h-96 flex items-center justify-center text-muted-foreground">
+                  暂无K线数据
+                </div>
+              )
+            )}
+          </Suspense>
         </Card>
 
         {/* 右侧信息 */}

@@ -18,12 +18,20 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
 
-          if (id.includes('echarts') || id.includes('zrender')) {
-            return 'vendor-echarts';
+          if (id.includes('recharts')) {
+            return 'vendor-recharts';
           }
 
           if (id.includes('@supabase')) {
             return 'vendor-supabase';
+          }
+
+          if (id.includes('@radix-ui')) {
+            return 'vendor-radix';
+          }
+
+          if (id.includes('lucide-react') || id.includes('sonner') || id.includes('swr')) {
+            return 'vendor-ui';
           }
         },
       },
