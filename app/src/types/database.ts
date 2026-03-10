@@ -435,6 +435,136 @@ export interface Database {
       // 沪深股通数据表
       // =============================================
 
+      announcement: {
+        Row: {
+          ann_id: string;
+          ts_code: string;
+          stock_name: string | null;
+          title: string;
+          ann_type: string | null;
+          ann_sub_type: string | null;
+          content: string | null;
+          file_url: string | null;
+          source: string | null;
+          ann_date: string;
+          importance: number | null;
+          summary: string | null;
+          related_anns: unknown[] | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          ann_id: string;
+          ts_code: string;
+          stock_name?: string | null;
+          title: string;
+          ann_type?: string | null;
+          ann_sub_type?: string | null;
+          content?: string | null;
+          file_url?: string | null;
+          source?: string | null;
+          ann_date: string;
+          importance?: number | null;
+          summary?: string | null;
+          related_anns?: unknown[] | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['announcement']['Insert']>;
+      };
+
+      research_report: {
+        Row: {
+          report_id: string;
+          title: string;
+          summary: string | null;
+          org_name: string | null;
+          author: string | null;
+          rating: string | null;
+          rating_change: string | null;
+          pre_rating: string | null;
+          target_price: number | null;
+          pre_target_price: number | null;
+          eps_forecast: number | null;
+          pe_forecast: number | null;
+          ts_code: string | null;
+          stock_name: string | null;
+          industry: string | null;
+          report_type: string | null;
+          report_date: string;
+          pages: number | null;
+          file_url: string | null;
+          read_count: number | null;
+          download_count: number | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          report_id: string;
+          title: string;
+          summary?: string | null;
+          org_name?: string | null;
+          author?: string | null;
+          rating?: string | null;
+          rating_change?: string | null;
+          pre_rating?: string | null;
+          target_price?: number | null;
+          pre_target_price?: number | null;
+          eps_forecast?: number | null;
+          pe_forecast?: number | null;
+          ts_code?: string | null;
+          stock_name?: string | null;
+          industry?: string | null;
+          report_type?: string | null;
+          report_date: string;
+          pages?: number | null;
+          file_url?: string | null;
+          read_count?: number | null;
+          download_count?: number | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['research_report']['Insert']>;
+      };
+
+      finance_calendar: {
+        Row: {
+          event_id: string;
+          event_type: string;
+          event_name: string;
+          event_desc: string | null;
+          ts_code: string | null;
+          stock_name: string | null;
+          event_date: string;
+          event_time: string | null;
+          importance: number | null;
+          status: number | null;
+          remind_time: string | null;
+          remind_sent: boolean | null;
+          extra_data: Record<string, unknown> | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          event_id: string;
+          event_type: string;
+          event_name: string;
+          event_desc?: string | null;
+          ts_code?: string | null;
+          stock_name?: string | null;
+          event_date: string;
+          event_time?: string | null;
+          importance?: number | null;
+          status?: number | null;
+          remind_time?: string | null;
+          remind_sent?: boolean | null;
+          extra_data?: Record<string, unknown> | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['finance_calendar']['Insert']>;
+      };
+
       // 沪深股通Top10持股
       hsgt_top10: {
         Row: {
@@ -610,6 +740,230 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['picker_strategy']['Insert']>;
       };
+
+      picker_result: {
+        Row: {
+          id: number;
+          strategy_id: number;
+          trade_date: string;
+          ts_code: string;
+          name: string | null;
+          close_price: number | null;
+          pct_chg: number | null;
+          score: number | null;
+          rank_num: number | null;
+          metadata: Record<string, unknown> | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          strategy_id: number;
+          trade_date: string;
+          ts_code: string;
+          name?: string | null;
+          close_price?: number | null;
+          pct_chg?: number | null;
+          score?: number | null;
+          rank_num?: number | null;
+          metadata?: Record<string, unknown> | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['picker_result']['Insert']>;
+      };
+
+      picker_backtest: {
+        Row: {
+          id: number;
+          strategy_id: number;
+          start_date: string;
+          end_date: string;
+          initial_capital: number | null;
+          total_return: number | null;
+          annualized_return: number | null;
+          max_drawdown: number | null;
+          max_drawdown_start: string | null;
+          max_drawdown_end: string | null;
+          sharpe_ratio: number | null;
+          sortino_ratio: number | null;
+          calmar_ratio: number | null;
+          win_rate: number | null;
+          profit_factor: number | null;
+          profit_loss_ratio: number | null;
+          total_trades: number | null;
+          avg_win: number | null;
+          avg_loss: number | null;
+          benchmark_return: number | null;
+          alpha: number | null;
+          beta: number | null;
+          information_ratio: number | null;
+          volatility: number | null;
+          turnover_rate: number | null;
+          avg_holding_period: number | null;
+          result_detail: Record<string, unknown> | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          strategy_id: number;
+          start_date: string;
+          end_date: string;
+          initial_capital?: number | null;
+          total_return?: number | null;
+          annualized_return?: number | null;
+          max_drawdown?: number | null;
+          max_drawdown_start?: string | null;
+          max_drawdown_end?: string | null;
+          sharpe_ratio?: number | null;
+          sortino_ratio?: number | null;
+          calmar_ratio?: number | null;
+          win_rate?: number | null;
+          profit_factor?: number | null;
+          profit_loss_ratio?: number | null;
+          total_trades?: number | null;
+          avg_win?: number | null;
+          avg_loss?: number | null;
+          benchmark_return?: number | null;
+          alpha?: number | null;
+          beta?: number | null;
+          information_ratio?: number | null;
+          volatility?: number | null;
+          turnover_rate?: number | null;
+          avg_holding_period?: number | null;
+          result_detail?: Record<string, unknown> | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['picker_backtest']['Insert']>;
+      };
+
+      picker_backtest_trade: {
+        Row: {
+          id: number;
+          backtest_id: number;
+          trade_date: string;
+          ts_code: string;
+          name: string | null;
+          action: 'BUY' | 'SELL';
+          price: number;
+          shares: number;
+          amount: number;
+          commission: number | null;
+          slippage: number | null;
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          backtest_id: number;
+          trade_date: string;
+          ts_code: string;
+          name?: string | null;
+          action: 'BUY' | 'SELL';
+          price: number;
+          shares: number;
+          amount: number;
+          commission?: number | null;
+          slippage?: number | null;
+          reason?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['picker_backtest_trade']['Insert']>;
+      };
+
+      picker_backtest_daily: {
+        Row: {
+          id: number;
+          backtest_id: number;
+          trade_date: string;
+          total_value: number;
+          cash: number;
+          market_value: number;
+          daily_return: number | null;
+          cumulative_return: number | null;
+          drawdown: number | null;
+          position_count: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          backtest_id: number;
+          trade_date: string;
+          total_value: number;
+          cash: number;
+          market_value: number;
+          daily_return?: number | null;
+          cumulative_return?: number | null;
+          drawdown?: number | null;
+          position_count?: number | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['picker_backtest_daily']['Insert']>;
+      };
+
+      picker_alert_rule: {
+        Row: {
+          id: string;
+          strategy_id: number;
+          name: string;
+          alert_type: 'new_match' | 'score_change' | 'price_threshold' | 'technical_signal' | 'volume_spike' | 'rank_change';
+          condition_config: Record<string, unknown>;
+          notification_channels: Record<string, unknown> | null;
+          check_interval: number;
+          cooldown: number;
+          is_active: boolean;
+          last_triggered_at: string | null;
+          trigger_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          strategy_id: number;
+          name: string;
+          alert_type: 'new_match' | 'score_change' | 'price_threshold' | 'technical_signal' | 'volume_spike' | 'rank_change';
+          condition_config: Record<string, unknown>;
+          notification_channels?: Record<string, unknown> | null;
+          check_interval?: number;
+          cooldown?: number;
+          is_active?: boolean;
+          last_triggered_at?: string | null;
+          trigger_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['picker_alert_rule']['Insert']>;
+      };
+
+      picker_alert_log: {
+        Row: {
+          id: number;
+          rule_id: string;
+          ts_code: string;
+          name: string | null;
+          trade_date: string;
+          alert_type: string;
+          alert_title: string | null;
+          alert_content: string | null;
+          alert_data: Record<string, unknown> | null;
+          is_read: boolean;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          rule_id: string;
+          ts_code: string;
+          name?: string | null;
+          trade_date: string;
+          alert_type: string;
+          alert_title?: string | null;
+          alert_content?: string | null;
+          alert_data?: Record<string, unknown> | null;
+          is_read?: boolean;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['picker_alert_log']['Insert']>;
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -629,8 +983,17 @@ export type StkLimitRow = Database['public']['Tables']['stk_limit']['Row'];
 export type TopListRow = Database['public']['Tables']['top_list']['Row'];
 export type TopInstRow = Database['public']['Tables']['top_inst']['Row'];
 export type MoneyflowRow = Database['public']['Tables']['moneyflow']['Row'];
+export type AnnouncementRow = Database['public']['Tables']['announcement']['Row'];
+export type ResearchReportRow = Database['public']['Tables']['research_report']['Row'];
+export type FinanceCalendarRow = Database['public']['Tables']['finance_calendar']['Row'];
 export type HsgtTop10Row = Database['public']['Tables']['hsgt_top10']['Row'];
 export type KplConceptRow = Database['public']['Tables']['kpl_concept']['Row'];
 export type KplListRow = Database['public']['Tables']['kpl_list']['Row'];
 export type NewShareRow = Database['public']['Tables']['new_share']['Row'];
 export type PickerStrategyRow = Database['public']['Tables']['picker_strategy']['Row'];
+export type PickerResultRow = Database['public']['Tables']['picker_result']['Row'];
+export type PickerBacktestRow = Database['public']['Tables']['picker_backtest']['Row'];
+export type PickerBacktestTradeRow = Database['public']['Tables']['picker_backtest_trade']['Row'];
+export type PickerBacktestDailyRow = Database['public']['Tables']['picker_backtest_daily']['Row'];
+export type PickerAlertRuleRow = Database['public']['Tables']['picker_alert_rule']['Row'];
+export type PickerAlertLogRow = Database['public']['Tables']['picker_alert_log']['Row'];

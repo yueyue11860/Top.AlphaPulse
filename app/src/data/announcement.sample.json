@@ -1,0 +1,29 @@
+[
+  {
+    "ann_id": "ann_demo_001",
+    "ts_code": "600519.SH",
+    "stock_name": "贵州茅台",
+    "title": "2025年度利润分配预案公告",
+    "ann_type": "定期报告",
+    "ann_sub_type": "利润分配",
+    "summary": "公司拟每10股派发现金红利，维持稳定分红政策。",
+    "content": "公司董事会审议通过 2025 年度利润分配预案，拟向全体股东实施现金分红。",
+    "file_url": "https://example.com/announcement/ann_demo_001.pdf",
+    "source": "上交所",
+    "ann_date": "2026-03-10",
+    "importance": "high",
+    "related_anns": ["ann_demo_002"]
+  },
+  {
+    "ann_id": "ann_demo_002",
+    "ts_code": "300750.SZ",
+    "stock_name": "宁德时代",
+    "title": "关于签署战略合作框架协议的公告",
+    "ann_type": "重大事项",
+    "summary": "公司与合作方围绕储能业务展开长期合作。",
+    "content": "本次合作有助于拓展海外储能市场。",
+    "source": "深交所",
+    "ann_date": "2026-03-09",
+    "importance": "urgent"
+  }
+]

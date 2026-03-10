@@ -5,7 +5,9 @@ import { TimeSeriesChart } from '@/components/chart/TimeSeriesChart';
 import { StockListTable } from '@/components/stock/StockListTable';
 import { cn, formatNumber, getChangeColor, formatLargeNumber, formatVolumeHand } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -16,9 +18,27 @@ import {
   BarChart3,
   FileText,
   Newspaper,
-  ArrowLeft
+  ArrowLeft,
+  Building2,
+  CalendarDays,
+  ExternalLink,
 } from 'lucide-react';
 import { fetchStockDetailBundle } from '@/services/stockDetailService';
+import {
+  fetchAnnouncementDetail,
+  fetchAnnouncements,
+  fetchFinanceCalendar,
+  fetchFinanceCalendarDetail,
+  fetchResearchReportDetail,
+  fetchResearchReports,
+} from '@/services/newsService';
+import type {
+  AnnouncementDetail,
+  AnnouncementItem,
+  FinanceCalendarEvent,
+  ResearchReportDetail,
+  ResearchReportItem,
+} from '@/types';
 
 interface StockDetailData {
   ts_code: string;
@@ -89,16 +109,66 @@ interface TimeSeriesItem {
   avg_price: number;
 }
 
+function RelatedContentSkeleton() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div key={index} className="rounded-lg border border-border p-3 space-y-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyRelatedContent({ text }: { text: string }) {
+  return <div className="text-sm text-muted-foreground text-center py-6">{text}</div>;
+}
+
+function getEventStatusLabel(status: FinanceCalendarEvent['status']) {
+  switch (status) {
+    case 'ongoing':
+      return '进行中';
+    case 'done':
+      return '已结束';
+    default:
+      return '未开始';
+  }
+}
+
+const INITIAL_RELATED_PAGE_SIZE = 5;
+const RELATED_PAGE_INCREMENT = 5;
+
 // 股票详情视图组件
 function StockDetailView({
   stockCode,
-  onBack
+  onBack,
+  onOpenNews,
 }: {
   stockCode: string;
   onBack: () => void;
+  onOpenNews?: (tab: 'announcement' | 'report' | 'calendar', stockCode?: string | null) => void;
 }) {
   const [chartType, setChartType] = useState<'timeseries' | 'kline'>('timeseries');
   const [isFavorited, setIsFavorited] = useState(false);
+  const [selectedAnnouncementId, setSelectedAnnouncementId] = useState<string | null>(null);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [announcementPageSize, setAnnouncementPageSize] = useState(INITIAL_RELATED_PAGE_SIZE);
+  const [reportPageSize, setReportPageSize] = useState(INITIAL_RELATED_PAGE_SIZE);
+  const [calendarPageSize, setCalendarPageSize] = useState(INITIAL_RELATED_PAGE_SIZE);
+
+  useEffect(() => {
+    setAnnouncementPageSize(INITIAL_RELATED_PAGE_SIZE);
+    setReportPageSize(INITIAL_RELATED_PAGE_SIZE);
+    setCalendarPageSize(INITIAL_RELATED_PAGE_SIZE);
+    setSelectedAnnouncementId(null);
+    setSelectedReportId(null);
+    setSelectedEventId(null);
+  }, [stockCode]);
+
   const { data, isLoading } = useSWR(
     ['stock:detail:bundle', stockCode],
     () => fetchStockDetailBundle(stockCode),
@@ -114,6 +184,73 @@ function StockDetailView({
   const kLineData = (data?.kLineData || []) as KLineItem[];
   const timeSeriesData = (data?.timeSeriesData || []) as TimeSeriesItem[];
   const moneyFlowData = (data?.moneyFlowData || []) as MoneyFlowItem[];
+  const { data: announcementData, isLoading: announcementLoading } = useSWR(
+    ['stock:announcements', stockCode, announcementPageSize],
+    () => fetchAnnouncements({ stockCode, page: 1, pageSize: announcementPageSize, dateRange: '90d' }),
+    {
+      dedupingInterval: 60_000,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
+  );
+  const { data: reportData, isLoading: reportLoading } = useSWR(
+    ['stock:research-reports', stockCode, reportPageSize],
+    () => fetchResearchReports({ stockCode, page: 1, pageSize: reportPageSize, dateRange: '90d' }),
+    {
+      dedupingInterval: 90_000,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
+  );
+  const { data: calendarData, isLoading: calendarLoading } = useSWR(
+    ['stock:calendar', stockCode, calendarPageSize],
+    () => fetchFinanceCalendar({ stockCode, page: 1, pageSize: calendarPageSize, dateRange: 'all' }),
+    {
+      dedupingInterval: 120_000,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
+  );
+
+  const announcements = (announcementData?.items || []) as AnnouncementItem[];
+  const reports = (reportData?.items || []) as ResearchReportItem[];
+  const calendarEvents = (calendarData?.items || []) as FinanceCalendarEvent[];
+  const announcementTotal = announcementData?.total || 0;
+  const reportTotal = reportData?.total || 0;
+  const calendarTotal = calendarData?.total || 0;
+  const canExpandAnnouncements = announcementTotal > announcements.length;
+  const canCollapseAnnouncements = announcementPageSize > INITIAL_RELATED_PAGE_SIZE;
+  const canExpandReports = reportTotal > reports.length;
+  const canCollapseReports = reportPageSize > INITIAL_RELATED_PAGE_SIZE;
+  const canExpandCalendar = calendarTotal > calendarEvents.length;
+  const canCollapseCalendar = calendarPageSize > INITIAL_RELATED_PAGE_SIZE;
+  const { data: selectedAnnouncementDetail, isLoading: announcementDetailLoading } = useSWR(
+    selectedAnnouncementId ? ['stock:announcement-detail', selectedAnnouncementId] : null,
+    () => fetchAnnouncementDetail(selectedAnnouncementId as string),
+    {
+      dedupingInterval: 60_000,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
+  );
+  const { data: selectedReportDetail, isLoading: reportDetailLoading } = useSWR(
+    selectedReportId ? ['stock:report-detail', selectedReportId] : null,
+    () => fetchResearchReportDetail(selectedReportId as string),
+    {
+      dedupingInterval: 90_000,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
+  );
+  const { data: selectedEventDetail, isLoading: eventDetailLoading } = useSWR(
+    selectedEventId ? ['stock:event-detail', selectedEventId] : null,
+    () => fetchFinanceCalendarDetail(selectedEventId as string),
+    {
+      dedupingInterval: 120_000,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
+  );
 
   if (loading) {
     return (
@@ -548,42 +685,422 @@ function StockDetailView({
         </TabsContent>
 
         <TabsContent value="news" className="mt-4">
-          <Card className="p-4">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <div className="bg-muted rounded-lg p-3">
-                <div className="text-xs text-muted-foreground">所属行业</div>
-                <div className="text-lg font-medium text-foreground">{stockData.industry || '-'}</div>
+          <div className="space-y-4">
+            <Card className="p-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="bg-muted rounded-lg p-3">
+                  <div className="text-xs text-muted-foreground">所属行业</div>
+                  <div className="text-lg font-medium text-foreground">{stockData.industry || '-'}</div>
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <div className="text-xs text-muted-foreground">所属地区</div>
+                  <div className="text-lg font-medium text-foreground">{stockData.area || '-'}</div>
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <div className="text-xs text-muted-foreground">上市板块</div>
+                  <div className="text-lg font-medium text-foreground">{stockData.market || '-'}</div>
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <div className="text-xs text-muted-foreground">上市日期</div>
+                  <div className="text-lg font-mono text-foreground">{stockData.list_date || '-'}</div>
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <div className="text-xs text-muted-foreground">股票代码</div>
+                  <div className="text-lg font-mono text-foreground">{stockData.ts_code}</div>
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <div className="text-xs text-muted-foreground">证券代码</div>
+                  <div className="text-lg font-mono text-foreground">{stockData.symbol}</div>
+                </div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
-                <div className="text-xs text-muted-foreground">所属地区</div>
-                <div className="text-lg font-medium text-foreground">{stockData.area || '-'}</div>
+            </Card>
+
+            <Card className="p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">公告 {announcementTotal}</Badge>
+                  <Badge variant="outline">研报 {reportTotal}</Badge>
+                  <Badge variant="outline">日历 {calendarTotal}</Badge>
+                  <span className="text-xs text-muted-foreground">展示最近关联内容，点击卡片可查看详情</span>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => onOpenNews?.('announcement', stockCode)}>
+                  去资讯中心查看
+                </Button>
               </div>
-              <div className="bg-muted rounded-lg p-3">
-                <div className="text-xs text-muted-foreground">上市板块</div>
-                <div className="text-lg font-medium text-foreground">{stockData.market || '-'}</div>
-              </div>
-              <div className="bg-muted rounded-lg p-3">
-                <div className="text-xs text-muted-foreground">上市日期</div>
-                <div className="text-lg font-mono text-foreground">{stockData.list_date || '-'}</div>
-              </div>
-              <div className="bg-muted rounded-lg p-3">
-                <div className="text-xs text-muted-foreground">股票代码</div>
-                <div className="text-lg font-mono text-foreground">{stockData.ts_code}</div>
-              </div>
-              <div className="bg-muted rounded-lg p-3">
-                <div className="text-xs text-muted-foreground">证券代码</div>
-                <div className="text-lg font-mono text-foreground">{stockData.symbol}</div>
-              </div>
-            </div>
-          </Card>
+
+              <Tabs defaultValue="announcements" className="w-full">
+                <TabsList className="w-full justify-start bg-muted overflow-x-auto">
+                  <TabsTrigger value="announcements" className="data-[state=active]:bg-white">
+                    公告
+                  </TabsTrigger>
+                  <TabsTrigger value="reports" className="data-[state=active]:bg-white">
+                    研报
+                  </TabsTrigger>
+                  <TabsTrigger value="calendar" className="data-[state=active]:bg-white">
+                    日历
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="announcements" className="mt-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => onOpenNews?.('announcement', stockCode)}>
+                        在资讯中心查看更多公告
+                      </Button>
+                    </div>
+                    {announcementLoading ? (
+                      <RelatedContentSkeleton />
+                    ) : announcements.length === 0 ? (
+                      <EmptyRelatedContent text="最近没有公告数据" />
+                    ) : (
+                      announcements.map((item) => (
+                        <button
+                          type="button"
+                          key={item.ann_id}
+                          className="w-full rounded-lg border border-border p-3 space-y-2 text-left hover:bg-muted/50 transition-colors"
+                          onClick={() => setSelectedAnnouncementId(item.ann_id)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="w-4 h-4 text-blue-600" />
+                              <Badge variant="outline">{item.ann_type}</Badge>
+                            </div>
+                            <span className="text-xs text-muted-foreground">{item.ann_date}</span>
+                          </div>
+                          <div className="text-sm text-foreground leading-6">{item.title}</div>
+                          {item.summary && <div className="text-xs text-muted-foreground line-clamp-2">{item.summary}</div>}
+                        </button>
+                      ))
+                    )}
+                    {(canExpandAnnouncements || canCollapseAnnouncements) && (
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        {canCollapseAnnouncements && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setAnnouncementPageSize(INITIAL_RELATED_PAGE_SIZE)}
+                          >
+                            收起
+                          </Button>
+                        )}
+                        {canExpandAnnouncements && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAnnouncementPageSize((current) => current + RELATED_PAGE_INCREMENT)}
+                          >
+                            查看更多
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="reports" className="mt-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => onOpenNews?.('report', stockCode)}>
+                        在资讯中心查看更多研报
+                      </Button>
+                    </div>
+                    {reportLoading ? (
+                      <RelatedContentSkeleton />
+                    ) : reports.length === 0 ? (
+                      <EmptyRelatedContent text="最近没有研报数据" />
+                    ) : (
+                      reports.map((item) => (
+                        <button
+                          type="button"
+                          key={item.report_id}
+                          className="w-full rounded-lg border border-border p-3 space-y-2 text-left hover:bg-muted/50 transition-colors"
+                          onClick={() => setSelectedReportId(item.report_id)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-purple-600" />
+                              <Badge variant="outline">{item.rating || '未评级'}</Badge>
+                            </div>
+                            <span className="text-xs text-muted-foreground">{item.report_date}</span>
+                          </div>
+                          <div className="text-sm text-foreground leading-6">{item.title}</div>
+                          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                            <span>{item.org_name || '--'}</span>
+                            <span>{typeof item.target_price === 'number' ? `目标价 ${item.target_price}` : '无目标价'}</span>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                    {(canExpandReports || canCollapseReports) && (
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        {canCollapseReports && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setReportPageSize(INITIAL_RELATED_PAGE_SIZE)}
+                          >
+                            收起
+                          </Button>
+                        )}
+                        {canExpandReports && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setReportPageSize((current) => current + RELATED_PAGE_INCREMENT)}
+                          >
+                            查看更多
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="calendar" className="mt-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => onOpenNews?.('calendar', stockCode)}>
+                        在资讯中心查看更多日历
+                      </Button>
+                    </div>
+                    {calendarLoading ? (
+                      <RelatedContentSkeleton />
+                    ) : calendarEvents.length === 0 ? (
+                      <EmptyRelatedContent text="最近没有日历事件" />
+                    ) : (
+                      calendarEvents.map((item) => (
+                        <button
+                          type="button"
+                          key={item.event_id}
+                          className="w-full rounded-lg border border-border p-3 space-y-2 text-left hover:bg-muted/50 transition-colors"
+                          onClick={() => setSelectedEventId(item.event_id)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <CalendarDays className="w-4 h-4 text-green-600" />
+                              <Badge variant="outline">{item.event_type}</Badge>
+                            </div>
+                            <span className="text-xs text-muted-foreground">{item.event_date}</span>
+                          </div>
+                          <div className="text-sm text-foreground leading-6">{item.event_name}</div>
+                          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                            <span>{item.event_time || '全天'}</span>
+                            <span>{getEventStatusLabel(item.status)}</span>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                    {(canExpandCalendar || canCollapseCalendar) && (
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        {canCollapseCalendar && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setCalendarPageSize(INITIAL_RELATED_PAGE_SIZE)}
+                          >
+                            收起
+                          </Button>
+                        )}
+                        {canExpandCalendar && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCalendarPageSize((current) => current + RELATED_PAGE_INCREMENT)}
+                          >
+                            查看更多
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
+
+      <RelatedAnnouncementSheet
+        open={Boolean(selectedAnnouncementId)}
+        onOpenChange={(open) => !open && setSelectedAnnouncementId(null)}
+        detail={selectedAnnouncementDetail}
+        loading={announcementDetailLoading}
+      />
+      <RelatedReportSheet
+        open={Boolean(selectedReportId)}
+        onOpenChange={(open) => !open && setSelectedReportId(null)}
+        detail={selectedReportDetail}
+        loading={reportDetailLoading}
+      />
+      <RelatedEventSheet
+        open={Boolean(selectedEventId)}
+        onOpenChange={(open) => !open && setSelectedEventId(null)}
+        detail={selectedEventDetail}
+        loading={eventDetailLoading}
+      />
     </div>
   );
 }
 
+function RelatedAnnouncementSheet({
+  open,
+  onOpenChange,
+  detail,
+  loading,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  detail: AnnouncementDetail | null | undefined;
+  loading: boolean;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>{detail?.title || '公告详情'}</SheetTitle>
+          <SheetDescription>
+            {detail ? `${detail.stock_name} ${detail.ts_code} · ${detail.ann_date}` : '正在加载公告详情'}
+          </SheetDescription>
+        </SheetHeader>
+        {loading ? (
+          <div className="p-4 space-y-3">
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        ) : detail ? (
+          <div className="px-4 pb-6 space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">{detail.ann_type}</Badge>
+              {detail.file_url && <Badge variant="outline">附件</Badge>}
+            </div>
+            {detail.summary && <p className="text-sm text-muted-foreground leading-6">{detail.summary}</p>}
+            <div className="rounded-lg bg-muted/40 p-4 text-sm text-foreground leading-7 whitespace-pre-wrap">
+              {detail.content || '当前仅同步到公告摘要。'}
+            </div>
+            {detail.file_url && (
+              <div className="flex justify-end">
+                <Button asChild>
+                  <a href={detail.file_url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="w-4 h-4 mr-2" />查看附件
+                  </a>
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function RelatedReportSheet({
+  open,
+  onOpenChange,
+  detail,
+  loading,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  detail: ResearchReportDetail | null | undefined;
+  loading: boolean;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>{detail?.title || '研报详情'}</SheetTitle>
+          <SheetDescription>
+            {detail ? `${detail.org_name || '--'} · ${detail.report_date}` : '正在加载研报详情'}
+          </SheetDescription>
+        </SheetHeader>
+        {loading ? (
+          <div className="p-4 space-y-3">
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        ) : detail ? (
+          <div className="px-4 pb-6 space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {detail.rating && <Badge variant="outline">{detail.rating}</Badge>}
+              {detail.rating_change && <Badge variant="outline">{detail.rating_change}</Badge>}
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-lg bg-muted/40 p-3">目标价：{detail.target_price ?? '--'}</div>
+              <div className="rounded-lg bg-muted/40 p-3">预测 PE：{detail.pe_forecast ?? '--'}</div>
+            </div>
+            <div className="rounded-lg bg-muted/40 p-4 text-sm text-foreground leading-7 whitespace-pre-wrap">
+              {detail.summary || '当前仅同步到研报摘要。'}
+            </div>
+            {detail.file_url && (
+              <div className="flex justify-end">
+                <Button asChild>
+                  <a href={detail.file_url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="w-4 h-4 mr-2" />查看原文
+                  </a>
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function RelatedEventSheet({
+  open,
+  onOpenChange,
+  detail,
+  loading,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  detail: FinanceCalendarEvent | null | undefined;
+  loading: boolean;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>{detail?.event_name || '事件详情'}</SheetTitle>
+          <SheetDescription>
+            {detail ? `${detail.event_date} ${detail.event_time || '全天'} · ${detail.event_type}` : '正在加载事件详情'}
+          </SheetDescription>
+        </SheetHeader>
+        {loading ? (
+          <div className="p-4 space-y-3">
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        ) : detail ? (
+          <div className="px-4 pb-6 space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">{detail.event_type}</Badge>
+              <Badge variant="outline">{getEventStatusLabel(detail.status)}</Badge>
+            </div>
+            <div className="rounded-lg bg-muted/40 p-4 text-sm text-foreground leading-7 whitespace-pre-wrap">
+              {detail.event_desc || '当前仅同步到事件摘要。'}
+            </div>
+            {detail.extra_data && Object.keys(detail.extra_data).length > 0 && (
+              <div className="rounded-lg bg-muted/40 p-4 text-xs text-muted-foreground overflow-x-auto">
+                <pre>{JSON.stringify(detail.extra_data, null, 2)}</pre>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 // 主组件：股票列表 + 详情切换
-export function StockDetail({ initialStockCode }: { initialStockCode?: string | null }) {
+export function StockDetail({
+  initialStockCode,
+  onOpenNews,
+}: {
+  initialStockCode?: string | null;
+  onOpenNews?: (tab: 'announcement' | 'report' | 'calendar', stockCode?: string | null) => void;
+}) {
   const [selectedStock, setSelectedStock] = useState<string | null>(initialStockCode ?? null);
 
   // 当外部传入的 initialStockCode 变化时同步更新
@@ -599,6 +1116,7 @@ export function StockDetail({ initialStockCode }: { initialStockCode?: string | 
       <StockDetailView
         stockCode={selectedStock}
         onBack={() => setSelectedStock(null)}
+        onOpenNews={onOpenNews}
       />
     );
   }

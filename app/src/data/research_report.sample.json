@@ -1,0 +1,32 @@
+[
+  {
+    "report_id": "report_demo_001",
+    "title": "贵州茅台：高端白酒需求稳健，维持买入评级",
+    "summary": "渠道库存健康，全年业绩增长确定性较强。",
+    "org_name": "中信证券",
+    "author": "张三",
+    "rating": "买入",
+    "rating_change": "维持",
+    "target_price": 1988,
+    "ts_code": "600519.SH",
+    "stock_name": "贵州茅台",
+    "industry": "白酒",
+    "report_type": "个股",
+    "report_date": "2026-03-10",
+    "pages": 12,
+    "file_url": "https://example.com/reports/report_demo_001.pdf",
+    "read_count": 321,
+    "download_count": 88
+  },
+  {
+    "report_id": "report_demo_002",
+    "title": "锂电行业月报：景气度回升，龙头优势强化",
+    "summary": "行业排产改善，储能和海外市场继续扩容。",
+    "org_name": "华泰证券",
+    "author": "李四",
+    "rating": "推荐",
+    "report_type": "行业",
+    "report_date": "2026-03-08",
+    "industry": "新能源"
+  }
+]

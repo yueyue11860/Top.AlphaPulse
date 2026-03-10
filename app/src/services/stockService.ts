@@ -2574,6 +2574,52 @@ export async function saveStrategy(strategy: {
   }
 }
 
+export async function updateStrategy(strategyId: number, payload: {
+  name?: string;
+  description?: string;
+  filters?: unknown[];
+}) {
+  try {
+    const updateData: Record<string, unknown> = {};
+
+    if (payload.name !== undefined) updateData.name = payload.name;
+    if (payload.description !== undefined) updateData.description = payload.description;
+    if (payload.filters !== undefined) updateData.stock_pool_config = { filters: payload.filters };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabaseStock as any)
+      .from('picker_strategy')
+      .update(updateData)
+      .eq('id', strategyId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return data;
+  } catch (error) {
+    logger.error('更新策略失败:', error);
+    throw error;
+  }
+}
+
+export async function deleteStrategy(strategyId: number) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabaseStock as any)
+      .from('picker_strategy')
+      .delete()
+      .eq('id', strategyId);
+
+    if (error) throw error;
+
+    return true;
+  } catch (error) {
+    logger.error('删除策略失败:', error);
+    throw error;
+  }
+}
+
 // ===========================================
 // 开盘啦题材数据（使用 kpl_concept 和 kpl_list）
 // ===========================================
@@ -3697,6 +3743,8 @@ export const stockService = {
   fetchStockMoneyFlow,
   fetchStrategies,
   saveStrategy,
+  updateStrategy,
+  deleteStrategy,
   fetchKplConcepts,
   fetchHsgtTop10,
   // 新增热榜相关

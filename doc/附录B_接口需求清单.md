@@ -247,6 +247,119 @@ label 建议枚举：
 
 响应字段应至少包括 net_inflow、sh_inflow、sz_inflow、cumulative_30d、time_series。
 
+### 3.2 标准 JSON 响应示例
+
+#### 3.2.1 市场概览聚合响应示例
+
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": {
+		"indices": [
+			{
+				"code": "000001.SH",
+				"name": "上证指数",
+				"current": 3288.45,
+				"change": 18.32,
+				"pct_change": 0.56,
+				"volume": 425000000,
+				"amount": 523400000000,
+				"high": 3294.2,
+				"low": 3266.12,
+				"open": 3272.15,
+				"pre_close": 3270.13
+			}
+		],
+		"sectors": [
+			{
+				"ts_code": "885621.TI",
+				"name": "算力概念",
+				"pct_change": 3.42,
+				"volume": 12500000,
+				"amount": 8650000000,
+				"up_count": 21,
+				"down_count": 4,
+				"limit_up_count": 3,
+				"net_inflow": 5.68,
+				"heat_score": 87,
+				"turnover_rate": 4.26
+			}
+		],
+		"limitUpList": [
+			{
+				"ts_code": "603019.SH",
+				"name": "中科曙光",
+				"trade_date": "2026-03-08",
+				"close": 68.21,
+				"pct_chg": 10.01,
+				"limit_amount": 326000000,
+				"first_time": "09:33:15",
+				"last_time": "14:51:20",
+				"open_times": 2,
+				"limit_times": 1,
+				"tag": "算力",
+				"theme": "AI基础设施"
+			}
+		],
+		"upDownDistribution": {
+			"up_count": 3562,
+			"down_count": 1284,
+			"flat_count": 93,
+			"limit_up": 78,
+			"limit_down": 4,
+			"distribution": [
+				{ "range": ">9%", "count": 78 },
+				{ "range": "3%~9%", "count": 562 },
+				{ "range": "0%~3%", "count": 2922 }
+			],
+			"lianbanStats": {
+				"oneBoard": 45,
+				"twoBoard": 19,
+				"threeBoard": 8,
+				"fourBoard": 4,
+				"fivePlus": 2
+			},
+			"zhabanCount": 16,
+			"fengbanRate": 82.98,
+			"maxLianban": 5
+		},
+		"enhancedSentiment": {
+			"overall": 76,
+			"label": "乐观",
+			"summary": "上涨家数明显占优，北向资金净流入维持强势"
+		},
+		"northFlow": {
+			"net_inflow": 38.62,
+			"sh_inflow": 22.45,
+			"sz_inflow": 16.17,
+			"cumulative_30d": 268.4,
+			"time_series": [
+				{ "date": "2026-03-04", "amount": 12.3 },
+				{ "date": "2026-03-05", "amount": 18.6 },
+				{ "date": "2026-03-06", "amount": 38.62 }
+			]
+		},
+		"hsgtTop10": [
+			{
+				"ts_code": "600519.SH",
+				"name": "贵州茅台",
+				"amount": 1250000000,
+				"close": 1688.0,
+				"change": 1.25,
+				"rank": 1,
+				"market_type": "沪股通",
+				"net_amount": 268000000
+			}
+		],
+		"updateTime": "2026-03-08 15:08:00"
+	},
+	"timestamp": 1772963280,
+	"request_id": "req_market_overview_001"
+}
+```
+
 ---
 
 ## 4. 个股详情接口需求
@@ -473,6 +586,126 @@ adjust 预留枚举建议：
 | moneyFlowData | array | 资金流向数据 |
 | timeSeriesData | array | 分时数据 |
 
+### 4.2 标准 JSON 响应示例
+
+#### 4.2.1 股票搜索响应示例
+
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": [
+		{
+			"ts_code": "600519.SH",
+			"name": "贵州茅台",
+			"industry": "酿酒行业"
+		},
+		{
+			"ts_code": "000858.SZ",
+			"name": "五粮液",
+			"industry": "酿酒行业"
+		}
+	],
+	"timestamp": 1772963280,
+	"request_id": "req_stock_search_001"
+}
+```
+
+#### 4.2.2 个股完整详情响应示例
+
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": {
+		"ts_code": "600519.SH",
+		"symbol": "600519",
+		"name": "贵州茅台",
+		"industry": "酿酒行业",
+		"market": "沪市主板",
+		"area": "贵州",
+		"list_date": "2001-08-27",
+		"trade_date": "2026-03-08",
+		"open": 1668.0,
+		"high": 1692.6,
+		"low": 1661.2,
+		"close": 1688.0,
+		"pre_close": 1667.2,
+		"change": 20.8,
+		"pct_chg": 1.25,
+		"vol": 32568,
+		"amount": 548230,
+		"turnover_rate": 0.42,
+		"turnover_rate_f": 0.61,
+		"volume_ratio": 1.18,
+		"pe": 28.3,
+		"pe_ttm": 27.6,
+		"pb": 9.82,
+		"ps": 12.14,
+		"ps_ttm": 11.95,
+		"dv_ratio": 1.72,
+		"dv_ttm": 1.68,
+		"total_share": 125619.78,
+		"float_share": 125619.78,
+		"free_share": 53318.2,
+		"total_mv": 212050000,
+		"circ_mv": 89980000
+	},
+	"timestamp": 1772963280,
+	"request_id": "req_stock_detail_001"
+}
+```
+
+#### 4.2.3 个股详情聚合包响应示例
+
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": {
+		"detail": {
+			"ts_code": "600519.SH",
+			"name": "贵州茅台",
+			"close": 1688.0,
+			"pct_chg": 1.25,
+			"pe_ttm": 27.6
+		},
+		"kLineData": [
+			{ "date": "2026-03-04", "open": 1650.0, "high": 1668.5, "low": 1648.3, "close": 1661.2, "volume": 28640 },
+			{ "date": "2026-03-05", "open": 1662.4, "high": 1692.6, "low": 1661.2, "close": 1688.0, "volume": 32568 }
+		],
+		"moneyFlowData": [
+			{
+				"trade_date": "2026-03-08",
+				"buy_sm_amount": 126000,
+				"sell_sm_amount": 138000,
+				"net_sm_amount": -12000,
+				"buy_md_amount": 186000,
+				"sell_md_amount": 172000,
+				"net_md_amount": 14000,
+				"buy_lg_amount": 268000,
+				"sell_lg_amount": 214000,
+				"net_lg_amount": 54000,
+				"buy_elg_amount": 312000,
+				"sell_elg_amount": 241000,
+				"net_elg_amount": 71000,
+				"net_main_amount": 125000,
+				"net_mf_amount": 127000
+			}
+		],
+		"timeSeriesData": [
+			{ "time": "09:31", "price": 1669.5, "volume": 3200, "avg_price": 1668.9 },
+			{ "time": "09:32", "price": 1671.2, "volume": 2800, "avg_price": 1670.1 }
+		]
+	},
+	"timestamp": 1772963280,
+	"request_id": "req_stock_bundle_001"
+}
+```
+
 ---
 
 ## 5. 板块热点接口需求
@@ -601,6 +834,40 @@ sectorType 枚举建议：
 | sectorType | string | 否 | all | 行业、概念等 |
 | limit | number | 否 | 20 | 返回数量 |
 
+### 5.5 标准 JSON 响应示例
+
+#### 5.5.1 板块聚合包响应示例
+
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": {
+		"heatmapData": [
+			{ "name": "算力概念", "value": 3.42, "size": 96, "type": "concept" },
+			{ "name": "半导体", "value": 2.86, "size": 88, "type": "industry" }
+		],
+		"industryHotList": [
+			{ "ts_code": "885431.TI", "ts_name": "半导体", "rank": 1, "pct_change": 2.86, "hot": 92 }
+		],
+		"conceptHotList": [
+			{ "ts_code": "885621.TI", "ts_name": "算力概念", "rank": 1, "pct_change": 3.42, "hot": 95 }
+		],
+		"hotStockList": [
+			{ "ts_code": "603019.SH", "ts_name": "中科曙光", "rank": 1, "pct_change": 10.01, "hot": 98, "concepts": ["算力", "液冷服务器"] }
+		],
+		"kplConcepts": [
+			{ "name": "AI基础设施", "limit_up_count": 5, "up_count": 18, "trade_date": "2026-03-08", "heat_score": 93 }
+		]
+	},
+	"timestamp": 1772963280,
+	"request_id": "req_sector_bundle_001"
+}
+```
+
+---
+
 ## 6. 龙虎榜接口需求
 
 | 接口名称 | 方法 | 用途 | 当前状态 |
@@ -684,6 +951,81 @@ DragonTigerInst 字段：
 | sell_rate | number | 卖出占比，单位 % |
 | net_buy | number | 净买入额，单位元 |
 | reason | string | 上榜原因 |
+
+### 6.2 标准 JSON 响应示例
+
+#### 6.2.1 龙虎榜列表响应示例
+
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": [
+		{
+			"trade_date": "2026-03-08",
+			"ts_code": "002261.SZ",
+			"name": "拓维信息",
+			"close": 24.68,
+			"pct_change": 9.98,
+			"turnover_rate": 18.32,
+			"amount": 3526000000,
+			"l_buy": 628000000,
+			"l_sell": 411000000,
+			"net_amount": 217000000,
+			"net_rate": 6.15,
+			"reasons": [
+				"日涨幅偏离值达7%",
+				"换手率异常"
+			]
+		}
+	],
+	"timestamp": 1772963280,
+	"request_id": "req_dragon_list_001"
+}
+```
+
+#### 6.2.2 龙虎榜详情响应示例
+
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": {
+		"buyers": [
+			{
+				"trade_date": "2026-03-08",
+				"ts_code": "002261.SZ",
+				"exalter": "中信证券上海分公司",
+				"side": "0",
+				"buy": 168000000,
+				"buy_rate": 4.76,
+				"sell": 12000000,
+				"sell_rate": 0.34,
+				"net_buy": 156000000,
+				"reason": "日涨幅偏离值达7%"
+			}
+		],
+		"sellers": [
+			{
+				"trade_date": "2026-03-08",
+				"ts_code": "002261.SZ",
+				"exalter": "东方财富证券拉萨团结路第一营业部",
+				"side": "1",
+				"buy": 18000000,
+				"buy_rate": 0.51,
+				"sell": 96000000,
+				"sell_rate": 2.72,
+				"net_buy": -78000000,
+				"reason": "日涨幅偏离值达7%"
+			}
+		]
+	},
+	"timestamp": 1772963280,
+	"request_id": "req_dragon_detail_001"
+}
+```
 
 ---
 
@@ -777,6 +1119,50 @@ list 列表建议字段：
 请求体建议包括 strategy_id、date_range、initial_capital、position_size、max_positions、rebalance_frequency、commission、slippage。
 
 响应字段建议包括 total_return、annual_return、max_drawdown、sharpe_ratio、win_rate、trades。
+
+### 7.6 标准 JSON 请求/响应示例
+
+#### 7.6.1 执行选股请求示例
+
+```json
+{
+	"name": "低估值放量策略",
+	"filters": [
+		{ "field": "market", "operator": "eq", "value": "沪市主板" },
+		{ "field": "pe", "operator": "lt", "value": 25 },
+		{ "field": "turnover_rate", "operator": "gte", "value": 3 }
+	],
+	"sort_by": "pct_chg",
+	"sort_order": "desc",
+	"page": 1,
+	"page_size": 20
+}
+```
+
+#### 7.6.2 执行选股响应示例
+
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": {
+		"strategy_id": "picker_exec_20260308_001",
+		"total": 18,
+		"list": [
+			{
+				"ts_code": "600309.SH",
+				"name": "万华化学",
+				"score": 84,
+				"matched_rules": ["PE<25", "换手率>=3"]
+			}
+		],
+		"execution_ms": 182
+	},
+	"timestamp": 1772963280,
+	"request_id": "req_picker_execute_001"
+}
+```
 
 ---
 
@@ -887,6 +1273,104 @@ confidence.level 建议枚举：
 | references | array | 引用信息 |
 | confidence | number | 置信度，建议范围 0-1 |
 | suggested_questions | array | 推荐追问 |
+
+### 8.5 标准 JSON 请求/响应示例
+
+#### 8.5.1 AI 诊断响应示例
+
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": {
+		"ts_code": "600519.SH",
+		"stock_name": "贵州茅台",
+		"analysis_date": "2026-03-08",
+		"overall": {
+			"score": 81,
+			"rating": "推荐持有",
+			"rating_code": "BUY"
+		},
+		"technical": {
+			"score": 78,
+			"summary": "价格维持强势区间，短期趋势偏多",
+			"signals": [
+				{ "name": "MACD", "signal": "bullish", "description": "零轴上方金叉" }
+			],
+			"support_resistance": {
+				"support": 1650,
+				"resistance": 1715
+			},
+			"trend": {
+				"short": "上涨",
+				"medium": "震荡偏强",
+				"long": "上涨"
+			}
+		},
+		"fundamental": {
+			"score": 86,
+			"summary": "盈利能力维持行业领先，估值仍处高位",
+			"strengths": ["ROE稳定", "现金流充裕"],
+			"concerns": ["估值分位偏高"],
+			"peer_comparison": "行业领先"
+		},
+		"capital": {
+			"score": 74,
+			"summary": "近5日主力资金维持净流入",
+			"flow_trend": "流入",
+			"institutional_activity": "积极",
+			"net_inflow_5d": 12.5,
+			"net_inflow_20d": 36.8
+		},
+		"risks": [
+			{
+				"level": "medium",
+				"type": "valuation",
+				"description": "估值高于近三年中位水平"
+			}
+		],
+		"confidence": {
+			"level": "high",
+			"score": 0.84,
+			"factors": {
+				"data_completeness": 0.96,
+				"model_accuracy": 0.82,
+				"market_regime": 0.79
+			}
+		},
+		"next_update": "2026-03-09T09:30:00+08:00",
+		"disclaimer": "本结果仅供参考，不构成投资建议。"
+	},
+	"timestamp": 1772963280,
+	"request_id": "req_ai_diagnosis_001"
+}
+```
+
+#### 8.5.2 AI 问答响应示例
+
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": {
+		"session_id": "ai_chat_600519_001",
+		"answer": "贵州茅台当前的核心矛盾在于基本面稳定与估值偏高之间的平衡。若以中线视角看，资金和盈利质量仍然较强。",
+		"references": [
+			{ "type": "stock_detail", "label": "个股详情" },
+			{ "type": "money_flow", "label": "资金流向" }
+		],
+		"confidence": 0.81,
+		"suggested_questions": [
+			"它的估值和五粮液相比如何？",
+			"近20日主力资金趋势怎么样？"
+		]
+	},
+	"timestamp": 1772963280,
+	"request_id": "req_ai_chat_001"
+}
+```
 
 ---
 
@@ -1024,11 +1508,61 @@ sourceKey 当前已知枚举：
 - clscntelegraph_tb
 - eastmoney724_tb
 
----
+### 9.5 标准 JSON 响应示例
 
-## 10. 通用接口要求
+#### 9.5.1 资讯主列表响应示例
 
----
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": [
+		{
+			"id": "eastmoney_987654",
+			"title": "证监会就资本市场改革最新进展答记者问",
+			"content": "证监会表示将继续推动中长期资金入市。",
+			"source": "东方财富",
+			"sourceKey": "eastmoney",
+			"display_time": 1772962800,
+			"time": "14:20",
+			"date": "03-08",
+			"importance": "high",
+			"categories": ["宏观", "监管"],
+			"images": []
+		},
+		{
+			"id": "cls_123456",
+			"title": "AI算力板块午后走强，多股涨停",
+			"content": "财联社3月8日电，AI算力板块午后持续走强。",
+			"source": "财联社",
+			"sourceKey": "cls",
+			"display_time": 1772962500,
+			"time": "14:15",
+			"date": "03-08",
+			"importance": "normal",
+			"categories": ["行业", "AI"]
+		}
+	],
+	"timestamp": 1772963280,
+	"request_id": "req_news_list_001"
+}
+```
+
+#### 9.5.2 实时订阅事件示例
+
+```json
+{
+	"event": "INSERT",
+	"tableName": "clscntelegraph_tb",
+	"new": {
+		"id": 123456,
+		"title": "财联社3月8日电，半导体板块盘中异动拉升",
+		"content": "龙头个股快速冲高，市场关注度提升。",
+		"display_time": 1772962860
+	}
+}
+```
 
 ## 10. 通用接口要求
 
@@ -1079,3 +1613,36 @@ sourceKey 当前已知枚举：
 - 聚合接口应支持 force_refresh 参数或等效能力。
 - 高频读接口应定义推荐 TTL，例如市场概览 120 秒、板块聚合 30 秒、资讯聚合 5 秒、个股详情包 15 秒。
 - 当缓存命中时，应保证结构与非缓存响应一致。
+
+### 10.7 统一响应包装示例
+
+#### 10.7.1 成功响应示例
+
+```json
+{
+	"code": 200,
+	"success": true,
+	"message": "success",
+	"data": {},
+	"timestamp": 1772963280,
+	"request_id": "req_common_success_001"
+}
+```
+
+#### 10.7.2 失败响应示例
+
+```json
+{
+	"code": 422,
+	"success": false,
+	"message": "筛选条件冲突",
+	"errors": [
+		{
+			"field": "filters[1]",
+			"reason": "price between 区间上限不能小于下限"
+		}
+	],
+	"timestamp": 1772963280,
+	"request_id": "req_common_error_001"
+}
+```

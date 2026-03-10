@@ -3,6 +3,13 @@ import { Navigation } from '@/components/Navigation';
 import { Toaster } from '@/components/ui/sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 
+type NewsTab = 'announcement' | 'report' | 'calendar';
+
+interface NewsNavigationState {
+  tab: NewsTab;
+  stockCode?: string | null;
+}
+
 const MarketOverview = lazy(() => import('@/sections/MarketOverview').then((m) => ({ default: m.MarketOverview })));
 const StockDetail = lazy(() => import('@/sections/StockDetail').then((m) => ({ default: m.StockDetail })));
 const SectorHeat = lazy(() => import('@/sections/SectorHeat').then((m) => ({ default: m.SectorHeat })));
@@ -34,6 +41,7 @@ function SectionFallback() {
 function App() {
   const [activeTab, setActiveTab] = useState('market');
   const [selectedStockCode, setSelectedStockCode] = useState<string | null>(null);
+  const [newsNavigation, setNewsNavigation] = useState<NewsNavigationState | null>(null);
 
   // 从其他模块跳转到个股详情
   const handleSelectStock = useCallback((tsCode: string) => {
@@ -41,22 +49,33 @@ function App() {
     setActiveTab('stock');
   }, []);
 
+  const handleOpenNews = useCallback((tab: NewsTab, stockCode?: string | null) => {
+    setNewsNavigation({ tab, stockCode: stockCode ?? null });
+    setActiveTab('news');
+  }, []);
+
   const renderContent = () => {
     switch (activeTab) {
       case 'market':
         return <MarketOverview />;
       case 'stock':
-        return <StockDetail initialStockCode={selectedStockCode} />;
+        return <StockDetail initialStockCode={selectedStockCode} onOpenNews={handleOpenNews} />;
       case 'sector':
         return <SectorHeat onSelectStock={handleSelectStock} />;
       case 'dragon':
         return <DragonTigerPage />;
       case 'screener':
-        return <StockScreener />;
+        return <StockScreener onSelectStock={handleSelectStock} />;
       case 'ai':
         return <AIAnalysis />;
       case 'news':
-        return <NewsCenter />;
+        return (
+          <NewsCenter
+            onSelectStock={handleSelectStock}
+            initialTab={newsNavigation?.tab}
+            initialStockCode={newsNavigation?.stockCode ?? null}
+          />
+        );
       default:
         return <MarketOverview />;
     }

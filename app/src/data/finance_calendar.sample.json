@@ -1,0 +1,28 @@
+[
+  {
+    "event_id": "event_demo_001",
+    "event_type": "财报披露",
+    "event_name": "贵州茅台 2025 年年报披露",
+    "event_desc": "公司计划披露 2025 年年度报告。",
+    "ts_code": "600519.SH",
+    "stock_name": "贵州茅台",
+    "event_date": "2026-03-12",
+    "event_time": "19:00",
+    "importance": "high",
+    "status": "upcoming",
+    "extra_data": {
+      "fiscal_year": "2025",
+      "remind_offset_hours": 4
+    }
+  },
+  {
+    "event_id": "event_demo_002",
+    "event_type": "宏观数据",
+    "event_name": "2月社融数据发布",
+    "event_desc": "关注流动性和信用扩张强度。",
+    "event_date": "2026-03-11",
+    "event_time": "10:00",
+    "importance": "normal",
+    "status": "upcoming"
+  }
+]

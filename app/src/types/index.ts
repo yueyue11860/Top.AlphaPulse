@@ -130,6 +130,120 @@ export interface FlashNewsItem {
   images?: string[];
 }
 
+export type ContentImportance = 'urgent' | 'high' | 'normal' | 'low';
+
+export interface StockReference {
+  ts_code: string;
+  stock_name: string;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+export type AnnouncementDateRange = '7d' | '30d' | '90d' | 'all';
+
+export interface AnnouncementItem extends StockReference {
+  ann_id: string;
+  title: string;
+  ann_type: string;
+  ann_sub_type?: string | null;
+  ann_date: string;
+  importance: ContentImportance;
+  source?: string | null;
+  file_url?: string | null;
+  summary?: string | null;
+}
+
+export interface AnnouncementDetail extends AnnouncementItem {
+  content?: string | null;
+  related_anns?: string[];
+}
+
+export interface AnnouncementQuery {
+  keyword?: string;
+  stockCode?: string;
+  annType?: string;
+  importance?: ContentImportance | 'all';
+  hasAttachment?: boolean;
+  dateRange?: AnnouncementDateRange;
+  page?: number;
+  pageSize?: number;
+}
+
+export type ResearchRating = '买入' | '增持' | '持有' | '减持' | '卖出' | '推荐';
+export type RatingChange = '升级' | '维持' | '下调' | '首次覆盖';
+export type ResearchReportType = '个股' | '行业' | '策略' | '宏观';
+export type ResearchDateRange = AnnouncementDateRange;
+
+export interface ResearchReportItem extends Partial<StockReference> {
+  report_id: string;
+  title: string;
+  summary?: string | null;
+  org_name?: string | null;
+  author?: string | null;
+  rating?: ResearchRating | null;
+  rating_change?: RatingChange | null;
+  target_price?: number | null;
+  report_type?: ResearchReportType | null;
+  report_date: string;
+  industry?: string | null;
+  file_url?: string | null;
+  read_count?: number | null;
+}
+
+export interface ResearchReportDetail extends ResearchReportItem {
+  pre_rating?: string | null;
+  pre_target_price?: number | null;
+  eps_forecast?: number | null;
+  pe_forecast?: number | null;
+  pages?: number | null;
+  download_count?: number | null;
+}
+
+export interface ResearchReportQuery {
+  keyword?: string;
+  stockCode?: string;
+  orgName?: string;
+  author?: string;
+  rating?: ResearchRating | 'all';
+  reportType?: ResearchReportType | 'all';
+  dateRange?: ResearchDateRange;
+  page?: number;
+  pageSize?: number;
+}
+
+export type CalendarEventType = '财报披露' | '股东大会' | '新股申购' | '宏观数据' | '解禁预告' | '融资融券' | '其他';
+export type CalendarEventStatus = 'upcoming' | 'ongoing' | 'done';
+export type CalendarDateRange = 'today' | '7d' | '30d' | 'all';
+
+export interface FinanceCalendarEvent extends Partial<StockReference> {
+  event_id: string;
+  event_type: CalendarEventType | string;
+  event_name: string;
+  event_desc?: string | null;
+  event_date: string;
+  event_time?: string | null;
+  importance: ContentImportance;
+  status: CalendarEventStatus;
+  extra_data?: Record<string, unknown> | null;
+}
+
+export interface FinanceCalendarQuery {
+  keyword?: string;
+  stockCode?: string;
+  eventType?: CalendarEventType | 'all';
+  status?: CalendarEventStatus | 'all';
+  importance?: ContentImportance | 'all';
+  dateRange?: CalendarDateRange;
+  page?: number;
+  pageSize?: number;
+}
+
 // 新闻源配置
 export interface NewsSource {
   key: string;         // 表名标识

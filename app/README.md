@@ -36,6 +36,98 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 npm run dev
 ```
 
+## 资讯内容导入
+
+资讯中心中的公司公告、研究报告、财经日历使用独立的新闻 Supabase 项目。
+
+1. 在 `.env` 中配置以下变量：
+
+```env
+VITE_SUPABASE_NEWS_URL=https://your-news-project-id.supabase.co
+VITE_SUPABASE_NEWS_ANON_KEY=your-news-anon-key-here
+SUPABASE_NEWS_SERVICE_ROLE_KEY=your-news-service-role-key-here
+```
+
+2. 执行迁移，创建三张内容表：
+
+```bash
+# 在 Supabase SQL Editor 执行
+app/supabase/migrations/20260309_news_content_modules.sql
+```
+
+3. 导入内置样例数据：
+
+```bash
+npm run import:news-content:sample
+```
+
+也可以按目录批量导入三类文件：
+
+```bash
+npm run import:news-content -- all ./imports/news-content
+```
+
+目录内建议使用以下文件名：
+
+```text
+announcement.json
+report.json
+calendar.json
+```
+
+4. 只校验归一化结果，不落库：
+
+```bash
+npm run import:news-content -- announcement --dry-run
+```
+
+5. 校验导入结果：
+
+```bash
+npm run verify:news-content
+npm run verify:news-content -- research_report
+```
+
+## 智能选股 AI 代理
+
+智能选股页默认优先请求同源代理接口 `/api/ai/screener`，这样模型 Key 不会暴露到浏览器。
+
+1. 前端环境变量建议保持：
+
+```env
+VITE_AI_SCREENER_USE_PROXY=true
+VITE_AI_SCREENER_PROXY_PATH=/api/ai/screener
+```
+
+2. 在部署平台配置服务端私有变量：
+
+```env
+AI_SCREENER_BASE_URL=https://your-openai-compatible-endpoint
+AI_SCREENER_API_KEY=your-server-side-key
+AI_SCREENER_MODEL=your-model-name
+AI_SCREENER_PATH=/chat/completions
+SUPABASE_STOCK_SERVICE_ROLE_KEY=your-stock-service-role-key-here
+```
+
+3. 如果代理未配置成功，前端会自动回退到本地规则解析，不会阻断智能选股主流程。
+
+4. 仅在确有需要时，才建议使用 `VITE_AI_SCREENER_BASE_URL` / `VITE_AI_SCREENER_API_KEY` / `VITE_AI_SCREENER_MODEL` 做前端直连兼容。
+
+## 预警扫描
+
+策略工作台中的“立即扫描”会调用同源接口 `/api/picker-alert/run`，按已启用规则扫描最近两期策略快照并写入预警日志。
+
+1. 部署时需要额外配置：
+
+```env
+VITE_SUPABASE_STOCK_URL=https://your-stock-project-id.supabase.co
+SUPABASE_STOCK_SERVICE_ROLE_KEY=your-stock-service-role-key-here
+```
+
+2. 当前扫描支持的规则类型包括：`new_match`、`score_change`、`price_threshold`、`technical_signal`、`volume_spike`、`rank_change`。
+
+3. 若后续接入定时任务，可直接定时触发 `/api/picker-alert/run`，无需改动前端。
+
 ## 📁 项目结构
 
 ```

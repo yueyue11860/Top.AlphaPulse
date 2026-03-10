@@ -4,8 +4,6 @@ import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Newspaper,
@@ -23,6 +21,9 @@ import { NewsSidebar, NewsMobileFilters } from '@/components/news/NewsSidebar';
 import { NewsStream } from '@/components/news/NewsStream';
 import { NewsDetailModal, ImageLightbox } from '@/components/news/NewsDetailModal';
 import { NewsSearchBar } from '@/components/news/NewsSearchBar';
+import { AnnouncementPanel } from '@/components/news/AnnouncementPanel';
+import { ResearchReportPanel } from '@/components/news/ResearchReportPanel';
+import { FinanceCalendarPanel } from '@/components/news/FinanceCalendarPanel';
 import type { NewsCardItem } from '@/components/news/NewsItemCard';
 
 // ── 表名 ↔ 来源 key 双向映射 ─────────────────────────────
@@ -54,31 +55,6 @@ const SOURCE_TO_TABLE_MAP: Record<string, string> = Object.entries(TABLE_TO_SOUR
   {} as Record<string, string>
 );
 
-// ── Mock 数据（公告/研报/日历，待接入真实数据） ─────────────
-
-const mockAnnouncements = [
-  { id: '1', title: '2024年度业绩预告', type: '业绩预告', date: '2024-01-15', code: '600519.SH', name: '贵州茅台' },
-  { id: '2', title: '关于控股股东增持股份的公告', type: '增减持', date: '2024-01-14', code: '000858.SZ', name: '五粮液' },
-  { id: '3', title: '2023年年度报告', type: '定期报告', date: '2024-01-13', code: '002230.SZ', name: '科大讯飞' },
-  { id: '4', title: '关于签署战略合作协议的公告', type: '重大事项', date: '2024-01-12', code: '300750.SZ', name: '宁德时代' },
-  { id: '5', title: '关于回购公司股份的进展公告', type: '回购', date: '2024-01-11', code: '600036.SH', name: '招商银行' },
-];
-
-const mockResearchReports = [
-  { id: '1', title: '贵州茅台2024年业绩点评：稳健增长，长期价值凸显', org: '中信证券', rating: '买入', target: 1850 as number | null, date: '2024-01-15' },
-  { id: '2', title: '白酒行业深度报告：集中度提升，龙头优势巩固', org: '中金公司', rating: '推荐', target: null as number | null, date: '2024-01-14' },
-  { id: '3', title: '宁德时代：技术领先，全球布局加速', org: '华泰证券', rating: '买入', target: 200 as number | null, date: '2024-01-13' },
-  { id: '4', title: 'AI行业跟踪：大模型商业化加速', org: '招商证券', rating: '推荐', target: null as number | null, date: '2024-01-12' },
-];
-
-const mockCalendar = [
-  { date: '01-16', time: '09:30', event: '1月LPR报价公布', type: '宏观', importance: 'high' },
-  { date: '01-16', time: '10:00', event: '贵州茅台财报披露', type: '财报', importance: 'high', code: '600519.SH', name: '贵州茅台' },
-  { date: '01-17', time: '09:30', event: '新股申购：某某科技', type: '新股', importance: 'normal' },
-  { date: '01-18', time: '15:00', event: '宁德时代股东大会', type: '股东大会', importance: 'normal', code: '300750.SZ', name: '宁德时代' },
-  { date: '01-19', time: '09:30', event: '12月经济数据发布', type: '宏观', importance: 'high' },
-];
-
 // ── 工具函数 ────────────────────────────────────────────
 
 function formatNewsTime(timestamp: number): { time: string; date: string } {
@@ -89,24 +65,21 @@ function formatNewsTime(timestamp: number): { time: string; date: string } {
   };
 }
 
-function getAnnouncementTypeColor(type: string) {
-  switch (type) {
-    case '业绩预告': return 'bg-green-100 text-green-700';
-    case '定期报告': return 'bg-blue-100 text-blue-700';
-    case '重大事项': return 'bg-red-100 text-red-700';
-    case '增减持': return 'bg-yellow-100 text-yellow-700';
-    case '回购': return 'bg-purple-100 text-purple-700';
-    default: return 'bg-muted text-muted-foreground';
-  }
-}
-
 // ══════════════════════════════════════════════════════════
 //  NewsCenter — 主组件
 // ══════════════════════════════════════════════════════════
 
-export function NewsCenter() {
+export function NewsCenter({
+  onSelectStock,
+  initialTab,
+  initialStockCode,
+}: {
+  onSelectStock?: (tsCode: string) => void;
+  initialTab?: 'announcement' | 'report' | 'calendar';
+  initialStockCode?: string | null;
+}) {
   // ── Tab 切换 ──
-  const [activeTab, setActiveTab] = useState('flash');
+  const [activeTab, setActiveTab] = useState(initialTab || 'flash');
 
   // ── 实时快讯数据 ──
   const [flashNews, setFlashNews] = useState<NewsCardItem[]>([]);
@@ -290,6 +263,12 @@ export function NewsCenter() {
 
   const loading = isLoading && flashNews.length === 0;
 
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   // ═══════════════════════════════════════════════════════
   //  渲染
   // ═══════════════════════════════════════════════════════
@@ -415,104 +394,17 @@ export function NewsCenter() {
 
         {/* ═══ 公司公告 Tab ═══ */}
         <TabsContent value="announcement" className="mt-4">
-          <Card className="p-4 bg-background border-border">
-            <div className="flex items-center gap-2 mb-4">
-              <Building2 className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-foreground">公司公告</h3>
-              <span className="text-xs text-muted-foreground">(示例数据，待接入)</span>
-            </div>
-            <div className="flex flex-wrap gap-2 mb-4">
-              <Badge className="bg-border text-muted-foreground cursor-pointer hover:bg-muted">全部</Badge>
-              <Badge className="bg-green-100 text-green-700 cursor-pointer">业绩预告</Badge>
-              <Badge className="bg-blue-100 text-blue-700 cursor-pointer">定期报告</Badge>
-              <Badge className="bg-red-100 text-red-700 cursor-pointer">重大事项</Badge>
-              <Badge className="bg-yellow-100 text-yellow-700 cursor-pointer">增减持</Badge>
-              <Badge className="bg-purple-100 text-purple-700 cursor-pointer">回购</Badge>
-            </div>
-            <ScrollArea className="h-[400px]">
-              <div className="space-y-2">
-                {mockAnnouncements.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between p-3 rounded-lg bg-muted hover:bg-muted transition-colors cursor-pointer">
-                    <div className="flex items-center gap-3">
-                      <Badge className={getAnnouncementTypeColor(a.type)}>{a.type}</Badge>
-                      <div>
-                        <p className="text-sm text-foreground">{a.title}</p>
-                        <p className="text-xs text-muted-foreground">{a.name} ({a.code})</p>
-                      </div>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{a.date}</span>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </Card>
+          <AnnouncementPanel onSelectStock={onSelectStock} initialStockCode={initialStockCode} />
         </TabsContent>
 
         {/* ═══ 研究报告 Tab ═══ */}
         <TabsContent value="report" className="mt-4">
-          <Card className="p-4 bg-background border-border">
-            <div className="flex items-center gap-2 mb-4">
-              <FileText className="w-5 h-5 text-purple-600" />
-              <h3 className="text-lg font-semibold text-foreground">研究报告</h3>
-              <span className="text-xs text-muted-foreground">(示例数据，待接入)</span>
-            </div>
-            <ScrollArea className="h-[400px]">
-              <div className="space-y-3">
-                {mockResearchReports.map((r) => (
-                  <div key={r.id} className="p-4 rounded-lg bg-muted hover:bg-muted transition-colors cursor-pointer">
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="text-sm font-medium text-foreground flex-1">{r.title}</h4>
-                      <Badge className={cn('ml-2', r.rating === '买入' ? 'bg-red-100 text-red-700' : r.rating === '推荐' ? 'bg-yellow-100 text-yellow-700' : 'bg-muted text-muted-foreground')}>
-                        {r.rating}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span>{r.org}</span>
-                      {r.target && <span>目标价: <span className="text-red-600 font-mono">{r.target}</span></span>}
-                      <span>{r.date}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </Card>
+          <ResearchReportPanel onSelectStock={onSelectStock} initialStockCode={initialStockCode} />
         </TabsContent>
 
         {/* ═══ 财经日历 Tab ═══ */}
         <TabsContent value="calendar" className="mt-4">
-          <Card className="p-4 bg-background border-border">
-            <div className="flex items-center gap-2 mb-4">
-              <CalendarIcon className="w-5 h-5 text-green-600" />
-              <h3 className="text-lg font-semibold text-foreground">财经日历</h3>
-              <span className="text-xs text-muted-foreground">(示例数据，待接入)</span>
-            </div>
-            <ScrollArea className="h-[400px]">
-              <div className="space-y-3">
-                {mockCalendar.map((event, index) => (
-                  <div key={index} className="flex items-center gap-4 p-3 rounded-lg bg-muted hover:bg-muted transition-colors">
-                    <div className="flex flex-col items-center min-w-16">
-                      <span className="text-sm font-bold text-foreground">{event.date}</span>
-                      <span className="text-xs text-muted-foreground">{event.time}</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm text-foreground">{event.event}</p>
-                      {'name' in event && event.name && (
-                        <p className="text-xs text-muted-foreground">{event.name} ({(event as { code: string }).code})</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={cn('text-xs', event.type === '宏观' ? 'bg-red-100 text-red-700' : event.type === '财报' ? 'bg-blue-100 text-blue-700' : event.type === '新股' ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground')}>
-                        {event.type}
-                      </Badge>
-                      <Badge className={cn('text-xs', event.importance === 'high' ? 'bg-red-100 text-red-700' : 'bg-muted text-muted-foreground')}>
-                        {event.importance === 'high' ? '重要' : '普通'}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </Card>
+          <FinanceCalendarPanel onSelectStock={onSelectStock} initialStockCode={initialStockCode} />
         </TabsContent>
       </Tabs>
 
