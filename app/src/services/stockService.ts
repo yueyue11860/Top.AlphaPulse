@@ -69,6 +69,8 @@ export interface UpDownDistributionPayload {
   totalAttempts?: number;
 }
 
+export type LimitBoardLevel = 1 | 2 | 3 | 4 | 5;
+
 export interface HsgtTop10PayloadItem {
   ts_code: string;
   name: string;
@@ -657,6 +659,77 @@ export async function fetchLimitDownList(limit = 20): Promise<LimitUpData[]> {
     return [];
   } catch (error) {
     logger.error('获取跌停数据失败:', error);
+    return [];
+  }
+}
+
+/**
+ * 按连板档位获取涨停股票列表
+ * level: 1=首板, 2=2板, 3=3板, 4=4板, 5=5板+
+ */
+export async function fetchLimitStocksByBoardLevel(level: LimitBoardLevel, limit = 200): Promise<LimitUpData[]> {
+  try {
+    const { data: latestData, error: latestError } = await supabaseStock
+      .from('limit_list_d')
+      .select('trade_date')
+      .eq('limit', 'U')
+      .order('trade_date', { ascending: false })
+      .limit(1);
+
+    if (latestError || !latestData || latestData.length === 0) {
+      logger.warn('获取最新涨停交易日失败:', latestError);
+      return [];
+    }
+
+    const latestDate = (latestData as { trade_date: string }[])[0].trade_date;
+
+    let query = supabaseStock
+      .from('limit_list_d')
+      .select('ts_code, name, trade_date, close, pct_chg, limit_amount, first_time, last_time, open_times, limit_times, industry')
+      .eq('trade_date', latestDate)
+      .eq('limit', 'U')
+      .order('limit_times', { ascending: false })
+      .order('first_time', { ascending: true })
+      .limit(limit);
+
+    query = level === 5
+      ? query.gte('limit_times', 5)
+      : query.eq('limit_times', level);
+
+    const { data, error } = await query;
+    if (error) {
+      logger.warn('按连板档位查询涨停股票失败:', { level, error });
+      return [];
+    }
+
+    return ((data || []) as {
+      ts_code: string;
+      name: string;
+      trade_date: string;
+      close: number;
+      pct_chg: number;
+      limit_amount: number | null;
+      first_time: string;
+      last_time: string;
+      open_times: number;
+      limit_times: number;
+      industry: string;
+    }[]).map((item) => ({
+      ts_code: item.ts_code,
+      name: item.name || '',
+      trade_date: item.trade_date,
+      close: item.close || 0,
+      pct_chg: item.pct_chg || 0,
+      limit_amount: item.limit_amount || 0,
+      first_time: item.first_time || '',
+      last_time: item.last_time || '',
+      open_times: item.open_times || 0,
+      limit_times: item.limit_times || 0,
+      tag: item.industry || '',
+      theme: ''
+    }));
+  } catch (error) {
+    logger.error('按连板档位获取涨停股票失败:', error);
     return [];
   }
 }
@@ -3724,6 +3797,7 @@ export const stockService = {
   fetchAllSectors,
   fetchLimitUpList,
   fetchLimitDownList,
+  fetchLimitStocksByBoardLevel,
   fetchUpDownDistribution,
   fetchMarketSentiment,
   fetchNorthFlow,

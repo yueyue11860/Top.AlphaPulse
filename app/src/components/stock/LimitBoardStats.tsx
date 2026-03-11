@@ -16,6 +16,7 @@ interface LimitBoardStatsProps {
     fengbanRate: number;
     maxLianban: number;
     topIndustries?: { name: string; count: number }[];
+    onBoardClick?: (level: 1 | 2 | 3 | 4 | 5, count: number) => void;
     className?: string;
 }
 
@@ -25,15 +26,16 @@ export const LimitBoardStats = memo(function LimitBoardStats({
     fengbanRate,
     maxLianban,
     topIndustries = [],
+    onBoardClick,
     className
 }: LimitBoardStatsProps) {
     // 连板天梯数据
     const lianbanData = [
-        { label: '首板', count: lianbanStats.oneBoard, color: 'bg-red-400' },
-        { label: '2板', count: lianbanStats.twoBoard, color: 'bg-red-500' },
-        { label: '3板', count: lianbanStats.threeBoard, color: 'bg-red-600' },
-        { label: '4板', count: lianbanStats.fourBoard, color: 'bg-red-700' },
-        { label: '5板+', count: lianbanStats.fivePlus, color: 'bg-red-800' },
+        { label: '首板', count: lianbanStats.oneBoard, color: 'bg-red-400', level: 1 as const },
+        { label: '2板', count: lianbanStats.twoBoard, color: 'bg-red-500', level: 2 as const },
+        { label: '3板', count: lianbanStats.threeBoard, color: 'bg-red-600', level: 3 as const },
+        { label: '4板', count: lianbanStats.fourBoard, color: 'bg-red-700', level: 4 as const },
+        { label: '5板+', count: lianbanStats.fivePlus, color: 'bg-red-800', level: 5 as const },
     ];
 
     const maxCount = Math.max(...lianbanData.map(d => d.count), 1);
@@ -69,18 +71,31 @@ export const LimitBoardStats = memo(function LimitBoardStats({
 
             {/* 连板天梯 */}
             <div className="space-y-1.5">
-                {lianbanData.map((item) => (
-                    <div key={item.label} className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground w-8">{item.label}</span>
-                        <div className="flex-1 h-5 bg-muted rounded-full overflow-hidden">
-                            <div
-                                className={cn('h-full rounded-full transition-all duration-500', item.color)}
-                                style={{ width: `${(item.count / maxCount) * 100}%` }}
-                            />
-                        </div>
-                        <span className="text-xs font-mono text-muted-foreground w-6 text-right">{item.count}</span>
-                    </div>
-                ))}
+                {lianbanData.map((item) => {
+                    const disabled = item.count <= 0;
+                    return (
+                        <button
+                            key={item.label}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => onBoardClick?.(item.level, item.count)}
+                            className={cn(
+                                'w-full flex items-center gap-2 rounded-md px-1 py-0.5 transition-colors',
+                                disabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-muted/70 active:bg-muted'
+                            )}
+                            aria-label={`查看${item.label}股票列表，当前${item.count}只`}
+                        >
+                            <span className="text-xs text-muted-foreground w-8">{item.label}</span>
+                            <div className="flex-1 h-5 bg-muted rounded-full overflow-hidden">
+                                <div
+                                    className={cn('h-full rounded-full transition-all duration-500', item.color)}
+                                    style={{ width: `${(item.count / maxCount) * 100}%` }}
+                                />
+                            </div>
+                            <span className="text-xs font-mono text-muted-foreground w-6 text-right">{item.count}</span>
+                        </button>
+                    );
+                })}
             </div>
 
             {/* 热门行业 */}

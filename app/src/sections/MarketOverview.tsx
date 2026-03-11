@@ -25,6 +25,10 @@ const LimitUpStats = lazy(() =>
   import('@/components/stock/LimitUpStats').then((m) => ({ default: m.LimitUpStats }))
 );
 
+interface MarketOverviewProps {
+  onSelectStock?: (tsCode: string) => void;
+}
+
 const MARKET_OVERVIEW_SNAPSHOT_KEY = 'alphapulse:market-overview:snapshot';
 const MARKET_OVERVIEW_SNAPSHOT_TTL = 5 * 60 * 1000;
 
@@ -71,7 +75,7 @@ function saveMarketOverviewSnapshot(data: MarketOverviewBundle): void {
   }
 }
 
-export function MarketOverview() {
+export function MarketOverview({ onSelectStock }: MarketOverviewProps) {
   const { data, isLoading, isValidating, mutate } = useSWR(
     'market:overview:bundle',
     () => fetchMarketOverviewBundle(),
@@ -215,6 +219,7 @@ export function MarketOverview() {
         <EnhancedMarketSentiment
           data={enhancedSentiment}
           loading={loading}
+          onSelectStock={onSelectStock}
           className="min-h-[400px]"
         />
       </Suspense>

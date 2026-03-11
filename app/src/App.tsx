@@ -57,7 +57,7 @@ function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'market':
-        return <MarketOverview />;
+        return <MarketOverview onSelectStock={handleSelectStock} />;
       case 'stock':
         return <StockDetail initialStockCode={selectedStockCode} onOpenNews={handleOpenNews} />;
       case 'sector':
@@ -77,7 +77,7 @@ function App() {
           />
         );
       default:
-        return <MarketOverview />;
+        return <MarketOverview onSelectStock={handleSelectStock} />;
     }
   };
 
