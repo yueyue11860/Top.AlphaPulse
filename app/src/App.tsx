@@ -63,7 +63,7 @@ function App() {
       case 'sector':
         return <SectorHeat onSelectStock={handleSelectStock} />;
       case 'dragon':
-        return <DragonTigerPage />;
+        return <DragonTigerPage onSelectStock={handleSelectStock} />;
       case 'screener':
         return <StockScreener onSelectStock={handleSelectStock} />;
       case 'ai':

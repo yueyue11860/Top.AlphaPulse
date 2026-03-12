@@ -97,6 +97,14 @@ export const EnhancedMarketSentiment = memo(function EnhancedMarketSentiment({ d
                             totalAmount={data.capital.totalAmount}
                             amountChange={data.capital.amountChange}
                             avgTurnover={data.capital.avgTurnover}
+                            turnoverMedian={data.capital.turnoverMedian ?? data.capital.avgTurnover ?? 0}
+                            highTurnoverRatio={data.capital.highTurnoverRatio ?? 0}
+                            turnoverZScore={data.capital.turnoverZScore ?? 0}
+                            amountVs5d={data.capital.amountVs5d ?? 0}
+                            activityLevel={data.capital.activityLevel ?? '中活跃'}
+                            baselineDays={data.capital.baselineDays ?? 0}
+                            highTurnoverThreshold={data.capital.highTurnoverThreshold ?? 5}
+                            highTurnoverRule={data.capital.highTurnoverRule ?? '主板>=5%，创业/科创>=8%，北交>=10%'}
                             northFlow={data.capital.northFlow}
                         />
                     </div>

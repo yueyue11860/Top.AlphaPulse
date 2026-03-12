@@ -12,6 +12,7 @@ import {
   DataZoomSliderComponent,
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+import { getStockChartColors } from '@/lib/chartTheme';
 
 echarts.use([
   CandlestickChart,
@@ -36,6 +37,11 @@ interface KLineData {
 interface KLineChartProps {
   data: KLineData[];
   className?: string;
+  period?: 'day' | 'week' | 'month';
+  defaultPeriod?: 'day' | 'week' | 'month';
+  onPeriodChange?: (period: 'day' | 'week' | 'month') => void;
+  layoutMode?: 'default' | 'fullscreen';
+  themeKey?: string;
 }
 
 // 聚合日K为周K / 月K
@@ -85,10 +91,26 @@ function aggregateKLine(data: KLineData[], period: 'day' | 'week' | 'month'): KL
   }));
 }
 
-export function KLineChart({ data, className }: KLineChartProps) {
+export function KLineChart({
+  data,
+  className,
+  period: controlledPeriod,
+  defaultPeriod = 'day',
+  onPeriodChange,
+  layoutMode = 'default',
+  themeKey,
+}: KLineChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
-  const [period, setPeriod] = useState<'day' | 'week' | 'month'>('day');
+  const [internalPeriod, setInternalPeriod] = useState<'day' | 'week' | 'month'>(defaultPeriod);
+  const period = controlledPeriod ?? internalPeriod;
+
+  const handlePeriodChange = (nextPeriod: 'day' | 'week' | 'month') => {
+    if (controlledPeriod === undefined) {
+      setInternalPeriod(nextPeriod);
+    }
+    onPeriodChange?.(nextPeriod);
+  };
 
   // 根据周期聚合数据
   const chartData = useMemo(() => aggregateKLine(data, period), [data, period]);
@@ -100,9 +122,15 @@ export function KLineChart({ data, className }: KLineChartProps) {
     chartRef.current = chart;
 
     const handleResize = () => chart.resize();
+    const resizeObserver = new ResizeObserver(() => {
+      chart.resize();
+    });
+
+    resizeObserver.observe(chartContainerRef.current);
     window.addEventListener('resize', handleResize);
 
     return () => {
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       chart.dispose();
       chartRef.current = null;
@@ -112,25 +140,34 @@ export function KLineChart({ data, className }: KLineChartProps) {
   // Update option when data or period changes
   useEffect(() => {
     const chart = chartRef.current;
-    if (!chart || chartData.length === 0) return;
+    if (!chart) return;
 
-    const isDark = document.documentElement.classList.contains('dark');
-    const colors = {
-      up: isDark ? '#ef4444' : '#dc2626',
-      down: isDark ? '#22c55e' : '#16a34a',
-      text: isDark ? '#94a3b8' : '#64748b',
-      line: isDark ? '#334155' : '#cbd5e1',
-      grid: isDark ? '#1e293b' : '#f1f5f9',
-      tooltipBg: isDark ? '#1e293b' : '#ffffff',
-      tooltipBorder: isDark ? '#334155' : '#e2e8f0',
-      tooltipText: isDark ? '#e2e8f0' : '#334155',
-      zoom: isDark ? 'rgba(96,165,250,0.2)' : 'rgba(59,130,246,0.2)',
-      zoomHandle: isDark ? '#60a5fa' : '#3b82f6',
-    };
+    if (chartData.length === 0) {
+      chart.clear();
+      return;
+    }
 
+    const themeHost = chartContainerRef.current;
+    if (!themeHost) return;
+
+    const colors = getStockChartColors(themeHost);
+    const isFullscreen = layoutMode === 'fullscreen';
+    const priceGridLeft = isFullscreen ? 118 : '10%';
+    const priceGridRight = isFullscreen ? 82 : '3%';
+    const priceGridTop = isFullscreen ? '8%' : '8%';
+    const priceGridHeight = isFullscreen ? '63%' : '55%';
+    const volumeGridTop = isFullscreen ? '77%' : '70%';
+    const volumeGridHeight = isFullscreen ? '17%' : '15%';
+    const zoomTop = isFullscreen ? '94%' : '92%';
     const dates = chartData.map(item => item.date);
     const values = chartData.map(item => [item.open, item.close, item.low, item.high]);
     const volumes = chartData.map(item => item.volume);
+    const maxVolume = Math.max(...volumes, 0);
+    const volumeStepBase = 500000;
+    const volumeInterval = maxVolume > 0
+      ? Math.max(volumeStepBase, Math.ceil(maxVolume / 3 / volumeStepBase) * volumeStepBase)
+      : volumeStepBase;
+    const volumeAxisMax = Math.max(volumeInterval * 3, Math.ceil(maxVolume / volumeInterval) * volumeInterval);
 
     chart.setOption({
       backgroundColor: 'transparent',
@@ -141,20 +178,51 @@ export function KLineChart({ data, className }: KLineChartProps) {
         },
         backgroundColor: colors.tooltipBg,
         borderColor: colors.tooltipBorder,
-        textStyle: { color: colors.tooltipText }
+        textStyle: { color: colors.tooltipText },
+        formatter: (params: any) => {
+          if (!Array.isArray(params) || params.length === 0) return '';
+
+          const candle = params.find((item) => item.seriesName === 'K线');
+          const volume = params.find((item) => item.seriesName === '成交量');
+          const axisValue = params[0]?.axisValue ?? '';
+
+          let html = `<div style="font-weight:600;margin-bottom:8px;color:${colors.tooltipText}">${axisValue}</div>`;
+
+          if (candle && Array.isArray(candle.data) && candle.data.length >= 4) {
+            const [open, close, low, high] = candle.data as [number, number, number, number];
+            html += `<div style="display:flex;align-items:center;gap:8px;margin:2px 0 8px 0;">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:9999px;background:${close >= open ? colors.up : colors.down}"></span>
+              <span style="color:${colors.tooltipText};font-weight:600;">K线</span>
+            </div>`;
+            html += `<div style="display:flex;justify-content:space-between;gap:20px;margin:2px 0"><span>开盘</span><span style="font-family:monospace;font-weight:600">${open.toFixed(2)}</span></div>`;
+            html += `<div style="display:flex;justify-content:space-between;gap:20px;margin:2px 0"><span>收盘</span><span style="font-family:monospace;font-weight:600">${close.toFixed(2)}</span></div>`;
+            html += `<div style="display:flex;justify-content:space-between;gap:20px;margin:2px 0"><span>最低</span><span style="font-family:monospace;font-weight:600">${low.toFixed(2)}</span></div>`;
+            html += `<div style="display:flex;justify-content:space-between;gap:20px;margin:2px 0"><span>最高</span><span style="font-family:monospace;font-weight:600">${high.toFixed(2)}</span></div>`;
+          }
+
+          if (volume) {
+            const volumeValue = Number(volume.value ?? 0);
+            const volumeText = volumeValue >= 10000
+              ? `${(volumeValue / 10000).toFixed(2)}万`
+              : `${Math.round(volumeValue)}`;
+            html += `<div style="display:flex;justify-content:space-between;gap:20px;margin:8px 0 2px 0"><span>成交量</span><span style="font-family:monospace;font-weight:600">${volumeText}</span></div>`;
+          }
+
+          return html;
+        }
       },
       grid: [
         {
-          left: '10%',
-          right: '3%',
-          top: '8%',
-          height: '55%'
+          left: priceGridLeft,
+          right: priceGridRight,
+          top: priceGridTop,
+          height: priceGridHeight
         },
         {
-          left: '10%',
-          right: '3%',
-          top: '70%',
-          height: '15%'
+          left: priceGridLeft,
+          right: priceGridRight,
+          top: volumeGridTop,
+          height: volumeGridHeight
         }
       ],
       xAxis: [
@@ -185,17 +253,27 @@ export function KLineChart({ data, className }: KLineChartProps) {
             }
           },
           axisLine: { lineStyle: { color: colors.line } },
-          axisLabel: { color: colors.text },
+          axisLabel: { color: colors.text, margin: isFullscreen ? 18 : 8 },
           splitLine: { lineStyle: { color: colors.grid } }
         },
         {
           scale: true,
           gridIndex: 1,
-          splitNumber: 2,
-          axisLabel: { show: false },
-          axisLine: { show: false },
+          min: 0,
+          max: volumeAxisMax,
+          interval: volumeInterval,
+          axisLabel: {
+            show: true,
+            color: colors.text,
+            margin: isFullscreen ? 18 : 8,
+            formatter: (value: number) => {
+              if (value === 0) return '0';
+              return `${(value / 10000).toFixed(0)}万`;
+            }
+          },
+          axisLine: { lineStyle: { color: colors.line } },
           axisTick: { show: false },
-          splitLine: { show: false }
+          splitLine: { lineStyle: { color: colors.grid, type: 'dashed' } }
         }
       ],
       dataZoom: [
@@ -209,7 +287,7 @@ export function KLineChart({ data, className }: KLineChartProps) {
           show: true,
           xAxisIndex: [0, 1],
           type: 'slider',
-          top: '92%',
+          top: zoomTop,
           start: 50,
           end: 100,
           textStyle: { color: colors.text },
@@ -249,10 +327,11 @@ export function KLineChart({ data, className }: KLineChartProps) {
         }
       ]
     }, true); // notMerge=true for clean replace
-  }, [chartData]);
+    chart.resize();
+  }, [chartData, layoutMode, themeKey]);
 
   return (
-    <div className={cn('flex flex-col', className)}>
+    <div className={cn('flex h-full min-h-0 w-full flex-col', className)}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-5 h-5 text-muted-foreground" />
@@ -263,7 +342,7 @@ export function KLineChart({ data, className }: KLineChartProps) {
             variant={period === 'day' ? 'default' : 'outline'}
             size="sm"
             className="h-7 px-2 text-xs"
-            onClick={() => setPeriod('day')}
+            onClick={() => handlePeriodChange('day')}
           >
             日K
           </Button>
@@ -271,7 +350,7 @@ export function KLineChart({ data, className }: KLineChartProps) {
             variant={period === 'week' ? 'default' : 'outline'}
             size="sm"
             className="h-7 px-2 text-xs"
-            onClick={() => setPeriod('week')}
+            onClick={() => handlePeriodChange('week')}
           >
             周K
           </Button>
@@ -279,7 +358,7 @@ export function KLineChart({ data, className }: KLineChartProps) {
             variant={period === 'month' ? 'default' : 'outline'}
             size="sm"
             className="h-7 px-2 text-xs"
-            onClick={() => setPeriod('month')}
+            onClick={() => handlePeriodChange('month')}
           >
             月K
           </Button>
@@ -287,7 +366,7 @@ export function KLineChart({ data, className }: KLineChartProps) {
       </div>
       <div 
         ref={chartContainerRef} 
-        className="flex-1 min-h-[300px] rounded-lg bg-muted/50"
+        className={cn('flex-1 w-full rounded-lg bg-muted/50', layoutMode === 'fullscreen' ? 'min-h-0 h-full' : 'min-h-[300px]')}
       />
     </div>
   );

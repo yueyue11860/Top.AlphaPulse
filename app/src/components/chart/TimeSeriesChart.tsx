@@ -9,6 +9,7 @@ import {
   GraphicComponent,
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+import { getStockChartColors } from '@/lib/chartTheme';
 
 echarts.use([
   LineChart,
@@ -27,6 +28,37 @@ interface TimeSeriesData {
     avg_price: number;
 }
 
+function buildTradingTimeline(): string[] {
+    const timeline: string[] = [];
+
+    for (let hour = 9; hour <= 11; hour += 1) {
+        const startMinute = hour === 9 ? 30 : 0;
+        const endMinute = hour === 11 ? 30 : 59;
+
+        for (let minute = startMinute; minute <= endMinute; minute += 1) {
+            timeline.push(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
+        }
+    }
+
+    for (let hour = 13; hour <= 15; hour += 1) {
+        const endMinute = hour === 15 ? 0 : 59;
+
+        for (let minute = 0; minute <= endMinute; minute += 1) {
+            timeline.push(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
+        }
+    }
+
+    return timeline;
+}
+
+const KEY_TIME_LABELS: Record<string, string> = {
+    '09:30': '09:30',
+    '10:30': '10:30',
+    '11:30': '11:30/13:00',
+    '14:00': '14:00',
+    '15:00': '15:00',
+};
+
 interface TimeSeriesChartProps {
     data: TimeSeriesData[];
     preClose: number;
@@ -34,9 +66,20 @@ interface TimeSeriesChartProps {
     stockName?: string;
     stockCode?: string;
     tradeDate?: string; // YYYYMMDD
+    layoutMode?: 'default' | 'fullscreen';
+    themeKey?: string;
 }
 
-export function TimeSeriesChart({ data, preClose, className, stockName, stockCode, tradeDate }: TimeSeriesChartProps) {
+export function TimeSeriesChart({
+    data,
+    preClose,
+    className,
+    stockName,
+    stockCode,
+    tradeDate,
+    layoutMode = 'default',
+    themeKey,
+}: TimeSeriesChartProps) {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<echarts.ECharts | null>(null);
 
@@ -47,9 +90,15 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
         chartRef.current = chart;
 
         const handleResize = () => chart.resize();
+        const resizeObserver = new ResizeObserver(() => {
+            chart.resize();
+        });
+
+        resizeObserver.observe(chartContainerRef.current);
         window.addEventListener('resize', handleResize);
 
         return () => {
+            resizeObserver.disconnect();
             window.removeEventListener('resize', handleResize);
             chart.dispose();
             chartRef.current = null;
@@ -59,60 +108,100 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
     // Update option when data changes
     useEffect(() => {
         const chart = chartRef.current;
-        if (!chart || data.length === 0) return;
+        if (!chart) return;
 
-        const isDark = document.documentElement.classList.contains('dark');
-        const colors = {
-          up: isDark ? '#ef4444' : '#dc2626',
-          down: isDark ? '#22c55e' : '#16a34a',
-          text: isDark ? '#94a3b8' : '#64748b',
-          textMuted: isDark ? '#64748b' : '#94a3b8',
-          line: isDark ? '#334155' : '#cbd5e1',
-          grid: isDark ? '#1e293b50' : '#e8ecf1',
-          gridFaint: isDark ? '#1e293b30' : '#f1f5f9',
-          tooltipBg: isDark ? 'rgba(15,23,42,0.96)' : 'rgba(255,255,255,0.96)',
-          tooltipBorder: isDark ? '#334155' : '#e2e8f0',
-          tooltipText: isDark ? '#e2e8f0' : '#334155',
-          tooltipLabel: isDark ? '#94a3b8' : '#64748b',
-          priceLine: isDark ? '#60a5fa' : '#1d4ed8',
-          avgLine: isDark ? '#f59e0b' : '#d97706',
-          areaGrad0: isDark ? 'rgba(96,165,250,0.15)' : 'rgba(59,130,246,0.20)',
-          areaGrad1: isDark ? 'rgba(96,165,250,0.03)' : 'rgba(59,130,246,0.01)',
-          upVol: isDark ? 'rgba(239,68,68,0.6)' : 'rgba(220,38,38,0.7)',
-          downVol: isDark ? 'rgba(34,197,94,0.6)' : 'rgba(22,163,74,0.7)',
-          markLine: isDark ? '#64748b' : '#94a3b8',
-          labelBg: isDark ? '#334155' : '#475569',
-        };
+        if (data.length === 0) {
+            chart.clear();
+            return;
+        }
 
-        const times = data.map(item => item.time);
-        const prices = data.map(item => item.price);
-        const avgPrices = data.map(item => item.avg_price);
-        const volumes = data.map(item => item.volume);
+                const themeHost = chartContainerRef.current;
+                if (!themeHost) return;
+
+                const colors = getStockChartColors(themeHost);
+
+        const timeline = buildTradingTimeline();
+        const dataMap = new Map(data.map((item) => [item.time, item]));
+        const observedIndices = data
+            .map((item) => timeline.indexOf(item.time))
+            .filter((index) => index >= 0);
+        const latestObservedIndex = observedIndices.length > 0 ? Math.max(...observedIndices) : -1;
+        const latestObservedPoint = latestObservedIndex >= 0 ? dataMap.get(timeline[latestObservedIndex]) ?? null : null;
+
+        let lastPrice: number | null = null;
+        let lastAvgPrice: number | null = null;
+
+        const times = timeline;
+        const prices = timeline.map((time, index) => {
+            const item = dataMap.get(time);
+            if (item) {
+                lastPrice = item.price;
+                return item.price;
+            }
+
+            if (latestObservedIndex >= 0 && index > latestObservedIndex) {
+                return null;
+            }
+
+            return lastPrice;
+        });
+        const avgPrices = timeline.map((time, index) => {
+            const item = dataMap.get(time);
+            if (item) {
+                lastAvgPrice = item.avg_price;
+                return item.avg_price;
+            }
+
+            if (latestObservedIndex >= 0 && index > latestObservedIndex) {
+                return null;
+            }
+
+            return lastAvgPrice;
+        });
+        const volumes = timeline.map((time) => dataMap.get(time)?.volume || 0);
 
         // ========== 东方财富风格：Y轴以昨收价对称 ==========
+        const validPrices = prices.filter((price): price is number => typeof price === 'number' && Number.isFinite(price));
+        const validAvgPrices = avgPrices.filter((price): price is number => typeof price === 'number' && Number.isFinite(price));
         const maxDev = Math.max(
-            ...prices.map(p => Math.abs(p - preClose)),
-            ...avgPrices.map(p => Math.abs(p - preClose)),
+            ...validPrices.map(p => Math.abs(p - preClose)),
+            ...validAvgPrices.map(p => Math.abs(p - preClose)),
             preClose * 0.005 // 最小偏差 0.5%，避免价格不变时太扁
         );
-        const yMin = preClose - maxDev * 1.1;
-        const yMax = preClose + maxDev * 1.1;
+        const yMin = preClose - maxDev * 1.04;
+        const yMax = preClose + maxDev * 1.04;
 
         // 对称涨跌幅
-        const maxChangePct = (maxDev / preClose) * 100 * 1.1;
+        const maxChangePct = (maxDev / preClose) * 100 * 1.04;
 
         // 最新数据
-        const latestPrice = prices[prices.length - 1];
+        const latestPrice = latestObservedPoint?.price ?? preClose;
         const latestChange = latestPrice - preClose;
         const latestChangePct = (latestChange / preClose * 100).toFixed(2);
-        const latestVolume = volumes[volumes.length - 1];
+        const latestVolume = latestObservedPoint?.volume || 0;
+        const isFullscreen = layoutMode === 'fullscreen';
+        const horizontalPadding = isFullscreen ? 112 : 70;
+        const priceGridTop = stockName ? (isFullscreen ? 36 : 32) : (isFullscreen ? 18 : 16);
+        const priceGridHeight = isFullscreen ? '63%' : '62%';
+        const volumeGridTop = isFullscreen ? '76%' : '78%';
+        const volumeGridHeight = isFullscreen ? '20%' : '14%';
+        const volumeBarWidth = isFullscreen ? '88%' : '70%';
+        const maxVolume = Math.max(...volumes, 0);
+        const baseVolumeStep = 500000;
+        const volumeStep = maxVolume > 0
+            ? Math.max(baseVolumeStep, Math.ceil(maxVolume / 4 / baseVolumeStep) * baseVolumeStep)
+            : baseVolumeStep;
+        const volumeAxisMax = Math.max(volumeStep * 4, Math.ceil(maxVolume / volumeStep) * volumeStep);
 
         // 成交量颜色：当前价格 vs 前一分钟价格
         const volumeColors = volumes.map((_vol, idx) => {
+            const currentPrice = prices[idx] ?? preClose;
+            const previousPrice = prices[idx - 1] ?? preClose;
+
             if (idx === 0) {
-                return prices[idx] >= preClose ? colors.upVol : colors.downVol;
+                return currentPrice >= preClose ? colors.upVol : colors.downVol;
             }
-            return prices[idx] >= prices[idx - 1] ? colors.upVol : colors.downVol;
+            return currentPrice >= previousPrice ? colors.upVol : colors.downVol;
         });
 
         const option: echarts.EChartsCoreOption = {
@@ -175,7 +264,8 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
 
                     params.forEach((item: any) => {
                         if (item.seriesName === '价格') {
-                            const price = item.value;
+                            const price = Number(item.value);
+                            if (!Number.isFinite(price)) return;
                             const change = price - preClose;
                             const changePct = (change / preClose * 100).toFixed(2);
                             const color = change >= 0 ? colors.up : colors.down;
@@ -188,9 +278,11 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
                 <span style="color:${color};font-family:monospace">${change >= 0 ? '+' : ''}${change.toFixed(2)} (${change >= 0 ? '+' : ''}${changePct}%)</span>
               </div>`;
                         } else if (item.seriesName === '均价') {
-                            html += `<div style="display:flex;justify-content:space-between;gap:20px;margin:2px 0">
+                                                        const avgPrice = Number(item.value);
+                                                        if (!Number.isFinite(avgPrice)) return;
+                                                        html += `<div style="display:flex;justify-content:space-between;gap:20px;margin:2px 0">
                 <span style="color:${colors.tooltipLabel}">均价</span>
-                <span style="color:${colors.avgLine};font-family:monospace">${item.value.toFixed(2)}</span>
+                                <span style="color:${colors.avgLine};font-family:monospace">${avgPrice.toFixed(2)}</span>
               </div>`;
                         } else if (item.seriesName === '成交量') {
                             const vol = item.value;
@@ -206,16 +298,16 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
             },
             grid: [
                 {
-                    left: 70,
-                    right: 70,
-                    top: stockName ? 30 : 15,
-                    height: '55%'
+                    left: horizontalPadding,
+                    right: horizontalPadding,
+                    top: priceGridTop,
+                    height: priceGridHeight
                 },
                 {
-                    left: 70,
-                    right: 70,
-                    top: '75%',
-                    height: '18%'
+                    left: horizontalPadding,
+                    right: horizontalPadding,
+                    top: volumeGridTop,
+                    height: volumeGridHeight
                 }
             ],
             xAxis: [
@@ -227,18 +319,15 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
                     axisTick: { show: false },
                     axisLabel: {
                         color: colors.text,
-                        fontSize: 10,
+                        fontSize: 11,
+                        margin: isFullscreen ? 18 : 14,
+                        interval: 0,
+                        hideOverlap: false,
+                        showMinLabel: true,
+                        showMaxLabel: true,
                         fontFamily: 'monospace',
                         formatter: (value: string) => {
-                            // 东方财富风格：只显示关键时间点
-                            if (value === '09:30' || value === '10:30' || value === '11:30' ||
-                                value === '13:00' || value === '14:00' || value === '15:00') {
-                                // 特殊处理午休中间
-                                if (value === '11:30') return '11:30/13:00';
-                                if (value === '13:00') return '';
-                                return value;
-                            }
-                            return '';
+                            return KEY_TIME_LABELS[value] || '';
                         }
                     },
                     splitLine: {
@@ -264,11 +353,12 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
                     min: yMin,
                     max: yMax,
                     position: 'left',
-                    splitNumber: 6,
+                    splitNumber: 8,
                     axisLine: { lineStyle: { color: colors.line } },
                     axisTick: { show: false },
                     axisLabel: {
-                        fontSize: 10,
+                        fontSize: 11,
+                        margin: isFullscreen ? 18 : 10,
                         fontFamily: 'monospace',
                         // 东方财富风格：高于昨收红色，低于昨收绿色
                         color: (value?: string | number) => {
@@ -289,11 +379,12 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
                     min: -maxChangePct,
                     max: maxChangePct,
                     position: 'right',
-                    splitNumber: 6,
+                    splitNumber: 8,
                     axisLine: { lineStyle: { color: colors.line } },
                     axisTick: { show: false },
                     axisLabel: {
-                        fontSize: 10,
+                        fontSize: 11,
+                        margin: isFullscreen ? 18 : 10,
                         fontFamily: 'monospace',
                         // 东方财富风格：正值红色，负值绿色
                         color: (value?: string | number) => {
@@ -310,17 +401,19 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
                     // 成交量Y轴
                     type: 'value',
                     gridIndex: 1,
-                    splitNumber: 2,
+                    min: 0,
+                    max: volumeAxisMax,
+                    interval: volumeStep,
                     axisLine: { lineStyle: { color: colors.line } },
                     axisTick: { show: false },
                     axisLabel: {
                         fontSize: 9,
                         fontFamily: 'monospace',
                         color: colors.textMuted,
+                        margin: isFullscreen ? 18 : 12,
                         formatter: (value: number) => {
-                            if (value >= 10000) return (value / 10000).toFixed(1) + '万';
-                            if (value >= 1000) return (value / 1000).toFixed(1) + '千';
-                            return value.toString();
+                            if (value === 0) return '0';
+                            return `${(value / 10000).toFixed(0)}万`;
                         }
                     },
                     splitLine: {
@@ -336,6 +429,7 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
                     type: 'line',
                     data: prices,
                     symbol: 'none',
+                    connectNulls: true,
                     lineStyle: {
                         width: 1.5,
                         color: colors.priceLine
@@ -343,7 +437,7 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
                     areaStyle: {
                         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
                             { offset: 0, color: colors.areaGrad0 },
-                            { offset: 0.5, color: isDark ? 'rgba(96,165,250,0.06)' : 'rgba(59,130,246,0.08)' },
+                            { offset: 0.5, color: colors.areaGradMid },
                             { offset: 1, color: colors.areaGrad1 }
                         ])
                     },
@@ -368,6 +462,7 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
                     type: 'line',
                     data: avgPrices,
                     symbol: 'none',
+                    connectNulls: true,
                     lineStyle: {
                         width: 1,
                         color: colors.avgLine,
@@ -386,16 +481,17 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
                             color: volumeColors[idx]
                         }
                     })),
-                    barWidth: '70%'
+                    barWidth: volumeBarWidth
                 }
             ]
         };
 
         chart.setOption(option, true); // notMerge=true for clean replace
-    }, [data, preClose, stockName, stockCode]);
+        chart.resize();
+    }, [data, preClose, stockName, stockCode, tradeDate, layoutMode, themeKey]);
 
     return (
-        <div className={cn('flex flex-col', className)}>
+        <div className={cn('flex h-full min-h-0 w-full flex-col', className)}>
             <div className="flex items-center gap-2 mb-2">
                 <div className="flex items-center gap-4 text-xs">
                     <span className="flex items-center gap-1.5">
@@ -415,10 +511,10 @@ export function TimeSeriesChart({ data, preClose, className, stockName, stockCod
             {data.length > 0 ? (
                 <div
                     ref={chartContainerRef}
-                    className="flex-1 min-h-[350px] rounded-lg border border-border bg-card"
+                    className={cn('flex-1 w-full rounded-lg border border-border bg-card', layoutMode === 'fullscreen' ? 'min-h-0 h-full' : 'min-h-[460px]')}
                 />
             ) : (
-                <div className="flex-1 min-h-[350px] rounded-lg border border-border bg-card flex items-center justify-center text-muted-foreground">
+                <div className={cn('flex-1 w-full rounded-lg border border-border bg-card flex items-center justify-center text-muted-foreground', layoutMode === 'fullscreen' ? 'min-h-0 h-full' : 'min-h-[460px]')}>
                     暂无分时数据
                 </div>
             )}

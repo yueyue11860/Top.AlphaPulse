@@ -5,9 +5,21 @@ import { cn, formatNumber, getChangeColor, formatLargeNumber, formatVolumeHand }
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { ENABLE_STOCK_DETAIL_WATCH_THEME } from '@/config/featureFlags';
+import { useWatchTheme } from '@/hooks/useWatchTheme';
+import { WatchThemeSwitcher } from '@/components/stock/WatchThemeSwitcher';
+import { getWatchThemeClassName } from '@/lib/watchThemes';
 import {
   Star,
   Bell,
@@ -20,8 +32,11 @@ import {
   Building2,
   CalendarDays,
   ExternalLink,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { fetchStockDetailBundle } from '@/services/stockDetailService';
+import { getStockDetailRefreshInterval } from '@/lib/marketTime';
 import {
   fetchAnnouncementDetail,
   fetchAnnouncements,
@@ -104,10 +119,192 @@ interface KLineItem {
 }
 
 interface TimeSeriesItem {
+  date?: string;
   time: string;
   price: number;
   volume: number;
   avg_price: number;
+  pre_close?: number;
+}
+
+interface RealtimeQuoteItem {
+  ts_code: string;
+  name: string;
+  date: string;
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  price: number;
+  volume: number;
+  amount: number;
+  pre_close: number;
+  change_pct: number;
+  change_amount: number;
+  bid: number;
+  ask: number;
+  b1_v: number;
+  b1_p: number;
+  b2_v: number;
+  b2_p: number;
+  b3_v: number;
+  b3_p: number;
+  b4_v: number;
+  b4_p: number;
+  b5_v: number;
+  b5_p: number;
+  a1_v: number;
+  a1_p: number;
+  a2_v: number;
+  a2_p: number;
+  a3_v: number;
+  a3_p: number;
+  a4_v: number;
+  a4_p: number;
+  a5_v: number;
+  a5_p: number;
+}
+
+type ChartType = 'timeseries' | 'kline';
+type KLinePeriod = 'day' | 'week' | 'month';
+
+function formatOrderBookVolume(value: number) {
+  const amount = Number(value || 0);
+  if (amount >= 10000) return `${(amount / 10000).toFixed(2)}万`;
+  return `${Math.round(amount)}`;
+}
+
+function formatSignedPercent(value: number) {
+  const num = Number(value || 0);
+  return `${num > 0 ? '+' : ''}${num.toFixed(2)}%`;
+}
+
+function formatSignedNumber(value: number) {
+  const num = Number(value || 0);
+  return `${num > 0 ? '+' : ''}${num.toFixed(0)}`;
+}
+
+function RealtimeOrderBook({
+  quote,
+  fallbackPreClose,
+  className,
+  watchThemeEnabled = false,
+}: {
+  quote: RealtimeQuoteItem | null;
+  fallbackPreClose: number;
+  className?: string;
+  watchThemeEnabled?: boolean;
+}) {
+  if (!quote) {
+    return (
+      <Card className={cn('p-4 h-full overflow-auto', className)}>
+        <h3 className="text-sm font-medium text-foreground mb-3">实时盘口</h3>
+        <div className="h-full min-h-[32rem] flex items-center justify-center text-sm text-muted-foreground">
+          暂无实时盘口数据
+        </div>
+      </Card>
+    );
+  }
+
+  const preClose = quote.pre_close || fallbackPreClose || 0;
+  const buyTotal = Number(quote.b1_v || 0) + Number(quote.b2_v || 0) + Number(quote.b3_v || 0) + Number(quote.b4_v || 0) + Number(quote.b5_v || 0);
+  const sellTotal = Number(quote.a1_v || 0) + Number(quote.a2_v || 0) + Number(quote.a3_v || 0) + Number(quote.a4_v || 0) + Number(quote.a5_v || 0);
+  const totalEntrust = buyTotal + sellTotal;
+  const ratio = totalEntrust > 0 ? ((buyTotal - sellTotal) / totalEntrust) * 100 : 0;
+  const diff = buyTotal - sellTotal;
+  const maxLevelVolume = Math.max(
+    buyTotal,
+    sellTotal,
+    Number(quote.b1_v || 0),
+    Number(quote.b2_v || 0),
+    Number(quote.b3_v || 0),
+    Number(quote.b4_v || 0),
+    Number(quote.b5_v || 0),
+    Number(quote.a1_v || 0),
+    Number(quote.a2_v || 0),
+    Number(quote.a3_v || 0),
+    Number(quote.a4_v || 0),
+    Number(quote.a5_v || 0),
+    1,
+  );
+
+  const sellLevels = [
+    { label: '卖五', price: quote.a5_p, volume: quote.a5_v },
+    { label: '卖四', price: quote.a4_p, volume: quote.a4_v },
+    { label: '卖三', price: quote.a3_p, volume: quote.a3_v },
+    { label: '卖二', price: quote.a2_p, volume: quote.a2_v },
+    { label: '卖一', price: quote.a1_p, volume: quote.a1_v },
+  ];
+  const buyLevels = [
+    { label: '买一', price: quote.b1_p, volume: quote.b1_v },
+    { label: '买二', price: quote.b2_p, volume: quote.b2_v },
+    { label: '买三', price: quote.b3_p, volume: quote.b3_v },
+    { label: '买四', price: quote.b4_p, volume: quote.b4_v },
+    { label: '买五', price: quote.b5_p, volume: quote.b5_v },
+  ];
+
+  return (
+    <Card className={cn(watchThemeEnabled && 'watch-theme-card', 'p-4 h-full overflow-auto', className)}>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-medium text-foreground">实时盘口</h3>
+        <span className="text-xs font-mono text-muted-foreground">{quote.date} {quote.time}</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 pb-4 border-b border-border">
+        <div>
+          <div className="text-xs text-muted-foreground">委比</div>
+          <div className={cn('text-3xl font-mono mt-1', getChangeColor(ratio))}>{formatSignedPercent(ratio)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-muted-foreground">委差</div>
+          <div className={cn('text-3xl font-mono mt-1', getChangeColor(diff))}>{formatSignedNumber(diff)}</div>
+        </div>
+      </div>
+
+      <div className="space-y-1 py-4 border-b border-border">
+        {sellLevels.map((level) => (
+          <div key={level.label} className="grid grid-cols-[3.5rem_5rem_1fr_4.75rem] items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{level.label}</span>
+            <span className={cn('font-mono', getChangeColor((level.price || 0) - preClose))}>{formatNumber(level.price || 0)}</span>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-[hsl(var(--watch-sell-fill)/0.88)]"
+                style={{ width: `${Math.max(4, Math.round((Number(level.volume || 0) / maxLevelVolume) * 100))}%` }}
+              />
+            </div>
+            <span className="font-mono text-right text-foreground">{formatOrderBookVolume(level.volume || 0)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-1 py-4 border-b border-border">
+        {buyLevels.map((level) => (
+          <div key={level.label} className="grid grid-cols-[3.5rem_5rem_1fr_4.75rem] items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{level.label}</span>
+            <span className={cn('font-mono', getChangeColor((level.price || 0) - preClose))}>{formatNumber(level.price || 0)}</span>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-[hsl(var(--watch-buy-fill)/0.88)]"
+                style={{ width: `${Math.max(4, Math.round((Number(level.volume || 0) / maxLevelVolume) * 100))}%` }}
+              />
+            </div>
+            <span className="font-mono text-right text-foreground">{formatOrderBookVolume(level.volume || 0)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 pt-4 text-sm">
+        <div className={watchThemeEnabled ? 'watch-theme-stat rounded-lg p-3' : 'rounded-lg bg-muted/60 p-3'}>
+          <div className="text-xs text-muted-foreground mb-1">买入价 / 卖出价</div>
+          <div className="font-mono text-foreground">{formatNumber(quote.bid || 0)} / {formatNumber(quote.ask || 0)}</div>
+        </div>
+        <div className={watchThemeEnabled ? 'watch-theme-stat rounded-lg p-3' : 'rounded-lg bg-muted/60 p-3'}>
+          <div className="text-xs text-muted-foreground mb-1">实时成交量</div>
+          <div className="font-mono text-foreground">{formatOrderBookVolume(quote.volume || 0)}</div>
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 function RelatedContentSkeleton() {
@@ -128,6 +325,166 @@ function EmptyRelatedContent({ text }: { text: string }) {
   return <div className="text-sm text-muted-foreground text-center py-6">{text}</div>;
 }
 
+function StockChartWorkspace({
+  chartType,
+  onChartTypeChange,
+  isFullscreen,
+  onToggleFullscreen,
+  allowDoubleClick,
+  timeSeriesData,
+  timeSeriesPreClose,
+  timeSeriesTradeDate,
+  stockName,
+  stockCode,
+  kLineData,
+  kLinePeriod,
+  onKLinePeriodChange,
+  realtimeQuote,
+  fallbackPreClose,
+  themeKey,
+  watchThemeEnabled = false,
+}: {
+  chartType: ChartType;
+  onChartTypeChange: (nextType: ChartType) => void;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
+  allowDoubleClick: boolean;
+  timeSeriesData: TimeSeriesItem[];
+  timeSeriesPreClose: number;
+  timeSeriesTradeDate?: string;
+  stockName: string;
+  stockCode: string;
+  kLineData: KLineItem[];
+  kLinePeriod: KLinePeriod;
+  onKLinePeriodChange: (nextPeriod: KLinePeriod) => void;
+  realtimeQuote: RealtimeQuoteItem | null;
+  fallbackPreClose: number;
+  themeKey?: string;
+  watchThemeEnabled?: boolean;
+}) {
+  const isTimeseries = chartType === 'timeseries';
+  const chartViewportClassName = isFullscreen ? 'h-full min-h-0 w-full' : isTimeseries ? 'h-[32rem]' : 'h-96';
+  const chartFallbackClassName = cn(chartViewportClassName, 'w-full');
+
+  return (
+    <div className={cn('grid grid-cols-1 gap-4', isFullscreen ? 'h-full min-h-0 grid-rows-[minmax(0,1fr)] md:grid-cols-3 md:gap-4' : 'lg:grid-cols-3')}>
+      <Card
+        className={cn(
+          watchThemeEnabled && 'watch-theme-card',
+          'p-4 overflow-hidden',
+          isFullscreen ? 'flex h-full min-h-0 flex-col md:col-span-2' : 'lg:col-span-2'
+        )}
+      >
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Button
+              variant={isTimeseries ? 'default' : 'outline'}
+              size="sm"
+              className={cn('h-7 px-3 text-xs', watchThemeEnabled && 'watch-theme-control')}
+              onClick={() => onChartTypeChange('timeseries')}
+            >
+              分时
+            </Button>
+            <Button
+              variant={!isTimeseries ? 'default' : 'outline'}
+              size="sm"
+              className={cn('h-7 px-3 text-xs', watchThemeEnabled && 'watch-theme-control')}
+              onClick={() => onChartTypeChange('kline')}
+            >
+              日K
+            </Button>
+          </div>
+
+          <Button variant="outline" size="sm" className={cn('h-8 gap-2', watchThemeEnabled && 'watch-theme-control')} onClick={onToggleFullscreen}>
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            {isFullscreen ? '退出全屏' : '全屏查看'}
+          </Button>
+        </div>
+
+        <div
+          className={cn('min-h-0 w-full', isFullscreen && 'h-full flex-1', allowDoubleClick && 'cursor-zoom-in')}
+          onDoubleClick={allowDoubleClick ? onToggleFullscreen : undefined}
+        >
+          <Suspense fallback={<Skeleton className={chartFallbackClassName} />}>
+            {isTimeseries ? (
+              timeSeriesData.length > 0 ? (
+                <TimeSeriesChart
+                  data={timeSeriesData}
+                  preClose={timeSeriesPreClose}
+                  className={chartViewportClassName}
+                  stockName={stockName}
+                  stockCode={stockCode}
+                  tradeDate={timeSeriesTradeDate}
+                  layoutMode={isFullscreen ? 'fullscreen' : 'default'}
+                  themeKey={themeKey}
+                />
+              ) : (
+                <div className={cn(chartViewportClassName, 'flex items-center justify-center text-sm text-muted-foreground')}>
+                  当前股票暂无实时分时数据（同步任务可能未覆盖该标的）
+                </div>
+              )
+            ) : kLineData.length > 0 ? (
+              <KLineChart
+                data={kLineData}
+                className={chartViewportClassName}
+                period={kLinePeriod}
+                onPeriodChange={onKLinePeriodChange}
+                layoutMode={isFullscreen ? 'fullscreen' : 'default'}
+                themeKey={themeKey}
+              />
+            ) : (
+              <div className={cn(chartViewportClassName, 'flex items-center justify-center text-muted-foreground')}>
+                暂无K线数据
+              </div>
+            )}
+          </Suspense>
+        </div>
+      </Card>
+
+      <div className={cn(isFullscreen && 'min-h-0 h-full')}>
+        <RealtimeOrderBook
+          quote={realtimeQuote}
+          fallbackPreClose={fallbackPreClose}
+          className={cn(isFullscreen && 'h-full min-h-0')}
+          watchThemeEnabled={watchThemeEnabled}
+        />
+      </div>
+    </div>
+  );
+}
+
+function StockChartFullscreenDialog({
+  open,
+  onOpenChange,
+  workspace,
+  themeClassName,
+  watchThemeEnabled = false,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  workspace: React.ReactNode;
+  themeClassName?: string;
+  watchThemeEnabled?: boolean;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        showCloseButton={false}
+        className={cn(
+          watchThemeEnabled && themeClassName,
+          '!left-0 !top-0 z-[60] !h-[100dvh] !w-screen !max-w-none !translate-x-0 !translate-y-0 gap-0 rounded-none border-0 bg-background/95 p-0 shadow-none sm:!max-w-none'
+        )}
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>股票图表全屏看盘</DialogTitle>
+          <DialogDescription>全屏查看分时图、日K图与实时盘口。</DialogDescription>
+        </DialogHeader>
+        <div className={cn('h-full w-full overflow-hidden p-2 md:p-4', watchThemeEnabled && 'watch-theme-shell')}>{workspace}</div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function getEventStatusLabel(status: FinanceCalendarEvent['status']) {
   switch (status) {
     case 'ongoing':
@@ -141,6 +498,10 @@ function getEventStatusLabel(status: FinanceCalendarEvent['status']) {
 
 const INITIAL_RELATED_PAGE_SIZE = 5;
 const RELATED_PAGE_INCREMENT = 5;
+const WATCH_THEME_STAT_CARD_CLASS = 'watch-theme-stat rounded-lg p-3';
+const WATCH_THEME_TAB_LIST_CLASS = 'watch-theme-tabs w-full justify-start overflow-x-auto';
+const WATCH_THEME_TAB_TRIGGER_CLASS = 'watch-theme-tab';
+const WATCH_THEME_INTERACTIVE_CARD_CLASS = 'watch-theme-interactive w-full rounded-lg border border-border p-3 space-y-2 text-left transition-colors';
 
 // 股票详情视图组件
 function StockDetailView({
@@ -152,7 +513,12 @@ function StockDetailView({
   onBack: () => void;
   onOpenNews?: (tab: 'announcement' | 'report' | 'calendar', stockCode?: string | null) => void;
 }) {
-  const [chartType, setChartType] = useState<'timeseries' | 'kline'>('timeseries');
+  const isMobile = useIsMobile();
+  const watchTheme = useWatchTheme();
+  const watchThemeEnabled = ENABLE_STOCK_DETAIL_WATCH_THEME;
+  const [chartType, setChartType] = useState<ChartType>('timeseries');
+  const [kLinePeriod, setKLinePeriod] = useState<KLinePeriod>('day');
+  const [isChartFullscreen, setIsChartFullscreen] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [selectedAnnouncementId, setSelectedAnnouncementId] = useState<string | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
@@ -168,15 +534,18 @@ function StockDetailView({
     setSelectedAnnouncementId(null);
     setSelectedReportId(null);
     setSelectedEventId(null);
+    setIsChartFullscreen(false);
+    setKLinePeriod('day');
   }, [stockCode]);
 
   const { data, isLoading } = useSWR(
     ['stock:detail:bundle', stockCode],
     () => fetchStockDetailBundle(stockCode),
     {
-      dedupingInterval: 15_000,
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
+      dedupingInterval: 1_000,
+      refreshInterval: () => getStockDetailRefreshInterval(),
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
     }
   );
 
@@ -184,6 +553,10 @@ function StockDetailView({
   const stockData = (data?.detail || null) as StockDetailData | null;
   const kLineData = (data?.kLineData || []) as KLineItem[];
   const timeSeriesData = (data?.timeSeriesData || []) as TimeSeriesItem[];
+  const realtimeQuote = (data?.realtimeQuote || null) as RealtimeQuoteItem | null;
+  const timeSeriesLast = timeSeriesData.length > 0 ? timeSeriesData[timeSeriesData.length - 1] : null;
+  const timeSeriesPreClose = timeSeriesLast?.pre_close || stockData?.pre_close || 0;
+  const timeSeriesTradeDate = timeSeriesLast?.date || stockData?.trade_date;
   const moneyFlowData = (data?.moneyFlowData || []) as MoneyFlowItem[];
   const { data: announcementData, isLoading: announcementLoading } = useSWR(
     ['stock:announcements', stockCode, announcementPageSize],
@@ -287,17 +660,84 @@ function StockDetailView({
   }
 
   const { change, pct_chg, close: currentPrice, pre_close: preClose } = stockData;
+  const watchThemeClassName = watchThemeEnabled ? getWatchThemeClassName(watchTheme.theme) : undefined;
+  const statCardClassName = watchThemeEnabled ? WATCH_THEME_STAT_CARD_CLASS : 'bg-muted rounded-lg p-3';
+  const primaryTabsListClassName = watchThemeEnabled ? WATCH_THEME_TAB_LIST_CLASS : 'w-full justify-start bg-muted';
+  const nestedTabsListClassName = watchThemeEnabled ? WATCH_THEME_TAB_LIST_CLASS : 'w-full justify-start bg-muted overflow-x-auto';
+  const tabTriggerClassName = watchThemeEnabled ? WATCH_THEME_TAB_TRIGGER_CLASS : 'data-[state=active]:bg-white';
+  const interactiveCardClassName = watchThemeEnabled
+    ? WATCH_THEME_INTERACTIVE_CARD_CLASS
+    : 'w-full rounded-lg border border-border p-3 space-y-2 text-left hover:bg-muted/50 transition-colors';
+  const chartWorkspace = (
+    <StockChartWorkspace
+      chartType={chartType}
+      onChartTypeChange={setChartType}
+      isFullscreen={false}
+      onToggleFullscreen={() => setIsChartFullscreen(true)}
+      allowDoubleClick={!isMobile}
+      timeSeriesData={timeSeriesData}
+      timeSeriesPreClose={timeSeriesPreClose}
+      timeSeriesTradeDate={timeSeriesTradeDate}
+      stockName={stockData.name}
+      stockCode={stockData.ts_code}
+      kLineData={kLineData}
+      kLinePeriod={kLinePeriod}
+      onKLinePeriodChange={setKLinePeriod}
+      realtimeQuote={realtimeQuote}
+      fallbackPreClose={timeSeriesPreClose || preClose}
+      themeKey={watchThemeEnabled ? watchTheme.theme : undefined}
+      watchThemeEnabled={watchThemeEnabled}
+    />
+  );
+
+  const fullscreenWorkspace = (
+    <StockChartWorkspace
+      chartType={chartType}
+      onChartTypeChange={setChartType}
+      isFullscreen
+      onToggleFullscreen={() => setIsChartFullscreen(false)}
+      allowDoubleClick={false}
+      timeSeriesData={timeSeriesData}
+      timeSeriesPreClose={timeSeriesPreClose}
+      timeSeriesTradeDate={timeSeriesTradeDate}
+      stockName={stockData.name}
+      stockCode={stockData.ts_code}
+      kLineData={kLineData}
+      kLinePeriod={kLinePeriod}
+      onKLinePeriodChange={setKLinePeriod}
+      realtimeQuote={realtimeQuote}
+      fallbackPreClose={timeSeriesPreClose || preClose}
+      themeKey={watchThemeEnabled ? watchTheme.theme : undefined}
+      watchThemeEnabled={watchThemeEnabled}
+    />
+  );
 
   return (
-    <div className="space-y-4">
+    <div className={cn('space-y-4', watchThemeEnabled && 'watch-theme-shell', watchThemeClassName)}>
       {/* 返回按钮 */}
-      <Button variant="outline" onClick={onBack} className="gap-2">
+      <Button variant="outline" onClick={onBack} className={cn('gap-2', watchThemeEnabled && 'watch-theme-control')}>
         <ArrowLeft className="w-4 h-4" />
         返回列表
       </Button>
 
       {/* 股票头部信息 */}
-      <Card className="p-4">
+      <Card className={cn('p-4', watchThemeEnabled && 'watch-theme-card')}>
+        {watchThemeEnabled && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="watch-theme-chip border-transparent">{watchTheme.currentTheme.name}</Badge>
+              <span className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{watchTheme.currentTheme.tagline}</span>
+              <span className="text-xs text-muted-foreground">当前主题仅作用于本盯盘页</span>
+            </div>
+            <WatchThemeSwitcher
+              theme={watchTheme.theme}
+              themes={watchTheme.themes}
+              onThemeChange={watchTheme.setTheme}
+              onRandomize={watchTheme.randomizeTheme}
+              isMobile={isMobile}
+            />
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
             <div>
@@ -306,23 +746,27 @@ function StockDetailView({
                 <span className="text-sm text-muted-foreground">{stockData.ts_code}</span>
               </div>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs px-2 py-0.5 rounded bg-border text-muted-foreground">{stockData.industry}</span>
-                <span className="text-xs px-2 py-0.5 rounded bg-border text-muted-foreground">{stockData.market}</span>
+                <span className={cn('text-xs px-2 py-0.5 rounded text-muted-foreground', watchThemeEnabled ? 'watch-theme-chip' : 'bg-border')}>
+                  {stockData.industry}
+                </span>
+                <span className={cn('text-xs px-2 py-0.5 rounded text-muted-foreground', watchThemeEnabled ? 'watch-theme-chip' : 'bg-border')}>
+                  {stockData.market}
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-muted-foreground hover:text-yellow-400"
+                className={cn('text-muted-foreground hover:text-yellow-400', watchThemeEnabled && 'watch-theme-control')}
                 onClick={() => setIsFavorited(!isFavorited)}
               >
                 <Star className={cn('w-5 h-5', isFavorited && 'fill-yellow-400 text-yellow-400')} />
               </Button>
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-muted-foreground">
+              <Button variant="ghost" size="icon" className={cn('text-muted-foreground hover:text-muted-foreground', watchThemeEnabled && 'watch-theme-control')}>
                 <Bell className="w-5 h-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-muted-foreground">
+              <Button variant="ghost" size="icon" className={cn('text-muted-foreground hover:text-muted-foreground', watchThemeEnabled && 'watch-theme-control')}>
                 <Share2 className="w-5 h-5" />
               </Button>
             </div>
@@ -353,11 +797,11 @@ function StockDetailView({
           </div>
           <div>
             <div className="text-xs text-muted-foreground">最高</div>
-            <div className="text-sm font-mono text-red-500">{formatNumber(stockData.high)}</div>
+            <div className="text-sm font-mono text-stock-up">{formatNumber(stockData.high)}</div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">最低</div>
-            <div className="text-sm font-mono text-green-500">{formatNumber(stockData.low)}</div>
+            <div className="text-sm font-mono text-stock-down">{formatNumber(stockData.low)}</div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">昨收</div>
@@ -383,201 +827,61 @@ function StockDetailView({
       </Card>
 
       {/* 主要内容区 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* 图表区域 */}
-        <Card className="p-4 lg:col-span-2">
-          {/* 图表类型切换 */}
-          <div className="flex items-center gap-2 mb-4">
-            <Button
-              variant={chartType === 'timeseries' ? 'default' : 'outline'}
-              size="sm"
-              className="h-7 px-3 text-xs"
-              onClick={() => setChartType('timeseries')}
-            >
-              分时
-            </Button>
-            <Button
-              variant={chartType === 'kline' ? 'default' : 'outline'}
-              size="sm"
-              className="h-7 px-3 text-xs"
-              onClick={() => setChartType('kline')}
-            >
-              日K
-            </Button>
-          </div>
-
-          {/* 图表内容 */}
-          <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-            {chartType === 'timeseries' ? (
-              <TimeSeriesChart
-                data={timeSeriesData}
-                preClose={stockData.pre_close || 0}
-                className="h-96"
-                stockName={stockData.name}
-                stockCode={stockData.ts_code}
-                tradeDate={stockData.trade_date}
-              />
-            ) : (
-              kLineData.length > 0 ? (
-                <KLineChart data={kLineData} className="h-96" />
-              ) : (
-                <div className="h-96 flex items-center justify-center text-muted-foreground">
-                  暂无K线数据
-                </div>
-              )
-            )}
-          </Suspense>
-        </Card>
-
-        {/* 右侧信息 */}
-        <div className="space-y-4">
-          {/* 行情概览 */}
-          <Card className="p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">行情概览</h3>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">量比</span>
-                <span className="font-mono text-foreground">{stockData.volume_ratio?.toFixed(2) || '-'}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">换手率(自由流通)</span>
-                <span className="font-mono text-foreground">{stockData.turnover_rate_f?.toFixed(2) || '-'}%</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">市盈率(静态)</span>
-                <span className="font-mono text-foreground">{stockData.pe?.toFixed(2) || '-'}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">市盈率(TTM)</span>
-                <span className="font-mono text-foreground">{stockData.pe_ttm?.toFixed(2) || '-'}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">市净率</span>
-                <span className="font-mono text-foreground">{stockData.pb?.toFixed(2) || '-'}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">股息率</span>
-                <span className="font-mono text-foreground">{stockData.dv_ttm?.toFixed(2) || '-'}%</span>
-              </div>
-            </div>
-          </Card>
-
-          {/* 资金流向 */}
-          <Card className="p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">今日资金流向</h3>
-            {moneyFlowData.length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">主力净流入</span>
-                  <span className={cn(
-                    'font-mono font-medium',
-                    (moneyFlowData[0].net_main_amount || 0) > 0 ? 'text-red-500' : 'text-green-500'
-                  )}>
-                    {(moneyFlowData[0].net_main_amount || 0) > 0 ? '+' : ''}
-                    {((moneyFlowData[0].net_main_amount || 0) / 10000).toFixed(2)}万
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">特大单净流入</span>
-                  <span className={cn(
-                    'font-mono',
-                    (moneyFlowData[0].net_elg_amount || 0) > 0 ? 'text-red-500' : 'text-green-500'
-                  )}>
-                    {(moneyFlowData[0].net_elg_amount || 0) > 0 ? '+' : ''}
-                    {((moneyFlowData[0].net_elg_amount || 0) / 10000).toFixed(2)}万
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">大单净流入</span>
-                  <span className={cn(
-                    'font-mono',
-                    (moneyFlowData[0].net_lg_amount || 0) > 0 ? 'text-red-500' : 'text-green-500'
-                  )}>
-                    {(moneyFlowData[0].net_lg_amount || 0) > 0 ? '+' : ''}
-                    {((moneyFlowData[0].net_lg_amount || 0) / 10000).toFixed(2)}万
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">中单净流入</span>
-                  <span className={cn(
-                    'font-mono',
-                    (moneyFlowData[0].net_md_amount || 0) > 0 ? 'text-red-500' : 'text-green-500'
-                  )}>
-                    {(moneyFlowData[0].net_md_amount || 0) > 0 ? '+' : ''}
-                    {((moneyFlowData[0].net_md_amount || 0) / 10000).toFixed(2)}万
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">小单净流入</span>
-                  <span className={cn(
-                    'font-mono',
-                    (moneyFlowData[0].net_sm_amount || 0) > 0 ? 'text-red-500' : 'text-green-500'
-                  )}>
-                    {(moneyFlowData[0].net_sm_amount || 0) > 0 ? '+' : ''}
-                    {((moneyFlowData[0].net_sm_amount || 0) / 10000).toFixed(2)}万
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground text-center py-4">暂无资金流向数据</div>
-            )}
-          </Card>
-        </div>
-      </div>
+      {chartWorkspace}
 
       {/* Tab内容 */}
       <Tabs defaultValue="fundamental" className="w-full">
-        <TabsList className="w-full justify-start bg-muted">
-          <TabsTrigger value="fundamental" className="data-[state=active]:bg-white">
+        <TabsList className={primaryTabsListClassName}>
+          <TabsTrigger value="fundamental" className={tabTriggerClassName}>
             <FileText className="w-4 h-4 mr-1" />
             基本面
           </TabsTrigger>
-          <TabsTrigger value="financial" className="data-[state=active]:bg-white">
+          <TabsTrigger value="financial" className={tabTriggerClassName}>
             <BarChart3 className="w-4 h-4 mr-1" />
             市值股本
           </TabsTrigger>
-          <TabsTrigger value="capital" className="data-[state=active]:bg-white">
+          <TabsTrigger value="capital" className={tabTriggerClassName}>
             <TrendingUp className="w-4 h-4 mr-1" />
             资金流向
           </TabsTrigger>
-          <TabsTrigger value="news" className="data-[state=active]:bg-white">
+          <TabsTrigger value="news" className={tabTriggerClassName}>
             <Newspaper className="w-4 h-4 mr-1" />
             公司信息
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="fundamental" className="mt-4">
-          <Card className="p-4">
+          <Card className={cn('p-4', watchThemeEnabled && 'watch-theme-card')}>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">总市值</div>
                 <div className="text-lg font-mono text-foreground">{formatLargeNumber(stockData.total_mv || 0, 'wan')}</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">流通市值</div>
                 <div className="text-lg font-mono text-foreground">{formatLargeNumber(stockData.circ_mv || 0, 'wan')}</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">市盈率(TTM)</div>
                 <div className="text-lg font-mono text-foreground">{stockData.pe_ttm?.toFixed(2) || '-'}</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">市净率</div>
                 <div className="text-lg font-mono text-foreground">{stockData.pb?.toFixed(2) || '-'}</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">市销率(TTM)</div>
                 <div className="text-lg font-mono text-foreground">{stockData.ps_ttm?.toFixed(2) || '-'}</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">股息率</div>
                 <div className="text-lg font-mono text-foreground">{stockData.dv_ratio?.toFixed(2) || '-'}%</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">股息率(TTM)</div>
                 <div className="text-lg font-mono text-foreground">{stockData.dv_ttm?.toFixed(2) || '-'}%</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">量比</div>
                 <div className="text-lg font-mono text-foreground">{stockData.volume_ratio?.toFixed(2) || '-'}</div>
               </div>
@@ -586,37 +890,37 @@ function StockDetailView({
         </TabsContent>
 
         <TabsContent value="financial" className="mt-4">
-          <Card className="p-4">
+          <Card className={cn('p-4', watchThemeEnabled && 'watch-theme-card')}>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">总股本</div>
                 <div className="text-lg font-mono text-foreground">{formatLargeNumber(stockData.total_share || 0, 'wan')}股</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">流通股本</div>
                 <div className="text-lg font-mono text-foreground">{formatLargeNumber(stockData.float_share || 0, 'wan')}股</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">自由流通股</div>
                 <div className="text-lg font-mono text-foreground">{formatLargeNumber(stockData.free_share || 0, 'wan')}股</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">换手率</div>
                 <div className="text-lg font-mono text-foreground">{stockData.turnover_rate?.toFixed(2) || '-'}%</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">换手率(自由流通)</div>
                 <div className="text-lg font-mono text-foreground">{stockData.turnover_rate_f?.toFixed(2) || '-'}%</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">总市值</div>
                 <div className="text-lg font-mono text-foreground">{formatLargeNumber(stockData.total_mv || 0, 'wan')}</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">流通市值</div>
                 <div className="text-lg font-mono text-foreground">{formatLargeNumber(stockData.circ_mv || 0, 'wan')}</div>
               </div>
-              <div className="bg-muted rounded-lg p-3">
+              <div className={statCardClassName}>
                 <div className="text-xs text-muted-foreground">数据日期</div>
                 <div className="text-lg font-mono text-foreground">{stockData.trade_date || '-'}</div>
               </div>
@@ -625,7 +929,7 @@ function StockDetailView({
         </TabsContent>
 
         <TabsContent value="capital" className="mt-4">
-          <Card className="p-4">
+          <Card className={cn('p-4', watchThemeEnabled && 'watch-theme-card')}>
             <h3 className="text-lg font-semibold text-foreground mb-4">近5日资金流向</h3>
             {moneyFlowData.length > 0 ? (
               <div className="overflow-x-auto">
@@ -642,35 +946,35 @@ function StockDetailView({
                   </thead>
                   <tbody>
                     {moneyFlowData.map((flow) => (
-                      <tr key={flow.trade_date} className="border-b border-border hover:bg-muted">
+                      <tr key={flow.trade_date} className={cn('border-b border-border hover:bg-muted', watchThemeEnabled && 'watch-theme-table-row hover:bg-transparent')}>
                         <td className="py-2 px-3 text-foreground">{flow.trade_date}</td>
                         <td className={cn(
                           'py-2 px-3 text-right font-mono',
-                          (flow.net_main_amount || 0) > 0 ? 'text-red-500' : 'text-green-500'
+                          getChangeColor(flow.net_main_amount || 0)
                         )}>
                           {((flow.net_main_amount || 0) / 10000).toFixed(2)}万
                         </td>
                         <td className={cn(
                           'py-2 px-3 text-right font-mono',
-                          (flow.net_elg_amount || 0) > 0 ? 'text-red-500' : 'text-green-500'
+                          getChangeColor(flow.net_elg_amount || 0)
                         )}>
                           {((flow.net_elg_amount || 0) / 10000).toFixed(2)}万
                         </td>
                         <td className={cn(
                           'py-2 px-3 text-right font-mono',
-                          (flow.net_lg_amount || 0) > 0 ? 'text-red-500' : 'text-green-500'
+                          getChangeColor(flow.net_lg_amount || 0)
                         )}>
                           {((flow.net_lg_amount || 0) / 10000).toFixed(2)}万
                         </td>
                         <td className={cn(
                           'py-2 px-3 text-right font-mono',
-                          (flow.net_md_amount || 0) > 0 ? 'text-red-500' : 'text-green-500'
+                          getChangeColor(flow.net_md_amount || 0)
                         )}>
                           {((flow.net_md_amount || 0) / 10000).toFixed(2)}万
                         </td>
                         <td className={cn(
                           'py-2 px-3 text-right font-mono',
-                          (flow.net_sm_amount || 0) > 0 ? 'text-red-500' : 'text-green-500'
+                          getChangeColor(flow.net_sm_amount || 0)
                         )}>
                           {((flow.net_sm_amount || 0) / 10000).toFixed(2)}万
                         </td>
@@ -689,36 +993,36 @@ function StockDetailView({
 
         <TabsContent value="news" className="mt-4">
           <div className="space-y-4">
-            <Card className="p-4">
+            <Card className={cn('p-4', watchThemeEnabled && 'watch-theme-card')}>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <div className="bg-muted rounded-lg p-3">
+                <div className={statCardClassName}>
                   <div className="text-xs text-muted-foreground">所属行业</div>
                   <div className="text-lg font-medium text-foreground">{stockData.industry || '-'}</div>
                 </div>
-                <div className="bg-muted rounded-lg p-3">
+                <div className={statCardClassName}>
                   <div className="text-xs text-muted-foreground">所属地区</div>
                   <div className="text-lg font-medium text-foreground">{stockData.area || '-'}</div>
                 </div>
-                <div className="bg-muted rounded-lg p-3">
+                <div className={statCardClassName}>
                   <div className="text-xs text-muted-foreground">上市板块</div>
                   <div className="text-lg font-medium text-foreground">{stockData.market || '-'}</div>
                 </div>
-                <div className="bg-muted rounded-lg p-3">
+                <div className={statCardClassName}>
                   <div className="text-xs text-muted-foreground">上市日期</div>
                   <div className="text-lg font-mono text-foreground">{stockData.list_date || '-'}</div>
                 </div>
-                <div className="bg-muted rounded-lg p-3">
+                <div className={statCardClassName}>
                   <div className="text-xs text-muted-foreground">股票代码</div>
                   <div className="text-lg font-mono text-foreground">{stockData.ts_code}</div>
                 </div>
-                <div className="bg-muted rounded-lg p-3">
+                <div className={statCardClassName}>
                   <div className="text-xs text-muted-foreground">证券代码</div>
                   <div className="text-lg font-mono text-foreground">{stockData.symbol}</div>
                 </div>
               </div>
             </Card>
 
-            <Card className="p-4">
+            <Card className={cn('p-4', watchThemeEnabled && 'watch-theme-card')}>
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">公告 {announcementTotal}</Badge>
@@ -732,14 +1036,14 @@ function StockDetailView({
               </div>
 
               <Tabs defaultValue="announcements" className="w-full">
-                <TabsList className="w-full justify-start bg-muted overflow-x-auto">
-                  <TabsTrigger value="announcements" className="data-[state=active]:bg-white">
+                <TabsList className={nestedTabsListClassName}>
+                  <TabsTrigger value="announcements" className={tabTriggerClassName}>
                     公告
                   </TabsTrigger>
-                  <TabsTrigger value="reports" className="data-[state=active]:bg-white">
+                  <TabsTrigger value="reports" className={tabTriggerClassName}>
                     研报
                   </TabsTrigger>
-                  <TabsTrigger value="calendar" className="data-[state=active]:bg-white">
+                  <TabsTrigger value="calendar" className={tabTriggerClassName}>
                     日历
                   </TabsTrigger>
                 </TabsList>
@@ -760,12 +1064,12 @@ function StockDetailView({
                         <button
                           type="button"
                           key={item.ann_id}
-                          className="w-full rounded-lg border border-border p-3 space-y-2 text-left hover:bg-muted/50 transition-colors"
+                          className={interactiveCardClassName}
                           onClick={() => setSelectedAnnouncementId(item.ann_id)}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                              <Building2 className="w-4 h-4 text-blue-600" />
+                              <Building2 className={cn('w-4 h-4 text-blue-600', watchThemeEnabled && 'text-[hsl(var(--watch-accent))]')} />
                               <Badge variant="outline">{item.ann_type}</Badge>
                             </div>
                             <span className="text-xs text-muted-foreground">{item.ann_date}</span>
@@ -816,12 +1120,12 @@ function StockDetailView({
                         <button
                           type="button"
                           key={item.report_id}
-                          className="w-full rounded-lg border border-border p-3 space-y-2 text-left hover:bg-muted/50 transition-colors"
+                          className={interactiveCardClassName}
                           onClick={() => setSelectedReportId(item.report_id)}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                              <FileText className="w-4 h-4 text-purple-600" />
+                              <FileText className={cn('w-4 h-4 text-purple-600', watchThemeEnabled && 'text-[hsl(var(--watch-accent-secondary))]')} />
                               <Badge variant="outline">{item.rating || '未评级'}</Badge>
                             </div>
                             <span className="text-xs text-muted-foreground">{item.report_date}</span>
@@ -875,12 +1179,12 @@ function StockDetailView({
                         <button
                           type="button"
                           key={item.event_id}
-                          className="w-full rounded-lg border border-border p-3 space-y-2 text-left hover:bg-muted/50 transition-colors"
+                          className={interactiveCardClassName}
                           onClick={() => setSelectedEventId(item.event_id)}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                              <CalendarDays className="w-4 h-4 text-green-600" />
+                              <CalendarDays className={cn('w-4 h-4 text-green-600', watchThemeEnabled && 'text-[hsl(var(--watch-accent-tertiary))]')} />
                               <Badge variant="outline">{item.event_type}</Badge>
                             </div>
                             <span className="text-xs text-muted-foreground">{item.event_date}</span>
@@ -940,6 +1244,13 @@ function StockDetailView({
         onOpenChange={(open) => !open && setSelectedEventId(null)}
         detail={selectedEventDetail}
         loading={eventDetailLoading}
+      />
+      <StockChartFullscreenDialog
+        open={isChartFullscreen}
+        onOpenChange={setIsChartFullscreen}
+        workspace={fullscreenWorkspace}
+        themeClassName={watchThemeClassName}
+        watchThemeEnabled={watchThemeEnabled}
       />
     </div>
   );

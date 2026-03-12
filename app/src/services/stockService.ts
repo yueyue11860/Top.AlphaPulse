@@ -1,3 +1,4 @@
+import { isCnMarketTradingSession } from '@/lib/marketTime';
 import type { IndexData, StockBasic, SectorData, LimitUpData, MarketSentiment, MoneyFlowData } from '@/types';
 import {
   supabaseStock,
@@ -25,8 +26,7 @@ import {
   mockKplConcepts,
   mockHsgtTop10,
   mockStocks,
-  generateKLineData,
-  generateTimeSeriesData
+  generateKLineData
 } from '@/data/mock';
 
 // ===========================================
@@ -116,6 +116,7 @@ export interface StockDetailBundle {
   kLineData: Awaited<ReturnType<typeof fetchKLineData>>;
   moneyFlowData: Awaited<ReturnType<typeof fetchStockMoneyFlow>>;
   timeSeriesData: Awaited<ReturnType<typeof fetchTimeSeriesData>>;
+  realtimeQuote: Awaited<ReturnType<typeof fetchRealtimeQuote>>;
 }
 
 // ===========================================
@@ -924,6 +925,14 @@ export interface EnhancedSentimentData {
     totalAmount: number;      // 今日成交额（亿）
     amountChange: number;     // 较昨日变化%
     avgTurnover: number;      // 平均换手率
+    turnoverMedian: number;   // 中位换手率
+    highTurnoverRatio: number;// 高换手占比（%）
+    turnoverZScore: number;   // 相对基线标准分
+    amountVs5d: number;       // 较5日均量偏离（%）
+    activityLevel: '低活跃' | '中活跃' | '高活跃';
+    baselineDays: number;     // 基线有效天数
+    highTurnoverThreshold: number; // 高换手阈值（%）
+    highTurnoverRule: string; // 分档阈值口径
     northFlow: number;        // 北向净流入（亿）
   };
 
@@ -943,10 +952,109 @@ export interface EnhancedSentimentData {
   };
 }
 
+type CapitalMetricsPayload = {
+  totalAmount: number;
+  amountChange: number;
+  avgTurnover: number;
+  turnoverMedian: number;
+  highTurnoverRatio: number;
+  turnoverZScore: number;
+  amountVs5d: number;
+  activityLevel: '低活跃' | '中活跃' | '高活跃';
+  baselineDays: number;
+  highTurnoverThreshold: number;
+  highTurnoverRule: string;
+};
+
+const HIGH_TURNOVER_THRESHOLD = 5;
+const HIGH_TURNOVER_RULE = '主板>=5%，创业/科创>=8%，北交>=10%';
+
+function getTurnoverThresholdByCode(tsCode: string): number {
+  if (!tsCode) return HIGH_TURNOVER_THRESHOLD;
+  const code = tsCode.split('.')[0] || '';
+  const market = tsCode.split('.')[1] || '';
+
+  if (market === 'BJ' || code.startsWith('8') || code.startsWith('4')) {
+    return 10;
+  }
+  if (code.startsWith('300') || code.startsWith('301') || code.startsWith('688') || code.startsWith('689')) {
+    return 8;
+  }
+  return HIGH_TURNOVER_THRESHOLD;
+}
+
+function calculateTurnoverSnapshot(rows: Array<{ ts_code: string; turnover_rate: number }>): {
+  avgTurnover: number;
+  turnoverMedian: number;
+  highTurnoverRatio: number;
+  highTurnoverThreshold: number;
+  highTurnoverRule: string;
+} {
+  const validRows = rows.filter((item) => Number(item.turnover_rate) > 0);
+  if (validRows.length === 0) {
+    return {
+      avgTurnover: 0,
+      turnoverMedian: 0,
+      highTurnoverRatio: 0,
+      highTurnoverThreshold: HIGH_TURNOVER_THRESHOLD,
+      highTurnoverRule: HIGH_TURNOVER_RULE,
+    };
+  }
+
+  const turnoverRates = validRows.map((item) => Number(item.turnover_rate));
+  const avgTurnover = turnoverRates.reduce((sum, value) => sum + value, 0) / turnoverRates.length;
+  const turnoverMedian = calculateMedian(turnoverRates);
+
+  let highCount = 0;
+  let thresholdSum = 0;
+  validRows.forEach((item) => {
+    const threshold = getTurnoverThresholdByCode(item.ts_code);
+    thresholdSum += threshold;
+    if (Number(item.turnover_rate) >= threshold) {
+      highCount += 1;
+    }
+  });
+
+  return {
+    avgTurnover,
+    turnoverMedian,
+    highTurnoverRatio: (highCount / validRows.length) * 100,
+    highTurnoverThreshold: thresholdSum / validRows.length,
+    highTurnoverRule: HIGH_TURNOVER_RULE,
+  };
+}
+
+function calculateMedian(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
+function calculateStd(values: number[]): number {
+  if (values.length <= 1) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+function getActivityLevel(turnoverZScore: number, highTurnoverRatio: number, amountVs5d: number): '低活跃' | '中活跃' | '高活跃' {
+  if (turnoverZScore >= 1 || highTurnoverRatio >= 28 || amountVs5d >= 20) {
+    return '高活跃';
+  }
+  if (turnoverZScore <= -0.8 && highTurnoverRatio <= 12 && amountVs5d <= -12) {
+    return '低活跃';
+  }
+  return '中活跃';
+}
+
 function buildEnhancedSentiment(
   distribution: UpDownDistributionPayload | null,
   northFlowData: NorthFlowPayload | null,
-  dailyAmountData: { totalAmount: number; amountChange: number; avgTurnover: number } | null
+  dailyAmountData: CapitalMetricsPayload | null
 ): EnhancedSentimentData | null {
   if (!distribution) {
     return null;
@@ -1001,6 +1109,14 @@ function buildEnhancedSentiment(
       totalAmount: dailyAmountData?.totalAmount || 0,
       amountChange: dailyAmountData?.amountChange || 0,
       avgTurnover: dailyAmountData?.avgTurnover || 0,
+      turnoverMedian: dailyAmountData?.turnoverMedian || 0,
+      highTurnoverRatio: dailyAmountData?.highTurnoverRatio || 0,
+      turnoverZScore: dailyAmountData?.turnoverZScore || 0,
+      amountVs5d: dailyAmountData?.amountVs5d || 0,
+      activityLevel: dailyAmountData?.activityLevel || '中活跃',
+      baselineDays: dailyAmountData?.baselineDays || 0,
+      highTurnoverThreshold: dailyAmountData?.highTurnoverThreshold || HIGH_TURNOVER_THRESHOLD,
+      highTurnoverRule: dailyAmountData?.highTurnoverRule || HIGH_TURNOVER_RULE,
       northFlow: northFlowData?.net_inflow || 0,
     },
     limitStats: {
@@ -1019,7 +1135,7 @@ function buildEnhancedSentiment(
 export async function fetchEnhancedSentiment(params?: {
   distribution?: UpDownDistributionPayload | null;
   northFlowData?: NorthFlowPayload | null;
-  dailyAmountData?: { totalAmount: number; amountChange: number; avgTurnover: number } | null;
+  dailyAmountData?: CapitalMetricsPayload | null;
   signal?: AbortSignal;
 }): Promise<EnhancedSentimentData | null> {
   try {
@@ -1046,8 +1162,46 @@ export async function fetchEnhancedSentiment(params?: {
  * 获取每日成交额统计
  * 优先走 RPC get_daily_total_amount（数据库端 SUM/AVG），失败时降级前端聚合
  */
-async function fetchDailyTotalAmount(signal?: AbortSignal): Promise<{ totalAmount: number; amountChange: number; avgTurnover: number } | null> {
+async function fetchDailyTotalAmount(signal?: AbortSignal): Promise<CapitalMetricsPayload | null> {
   try {
+    const requestSignal = signal ?? new AbortController().signal;
+
+    const { data: latestDates } = await supabaseStock
+      .from('daily')
+      .select('trade_date')
+      .abortSignal(requestSignal)
+      .order('trade_date', { ascending: false })
+      .limit(1);
+
+    if (!latestDates || latestDates.length === 0) return null;
+    const latestDate = (latestDates as { trade_date: string }[])[0].trade_date;
+
+    let turnoverSnapshot = {
+      avgTurnover: 0,
+      turnoverMedian: 0,
+      highTurnoverRatio: 0,
+      highTurnoverThreshold: HIGH_TURNOVER_THRESHOLD,
+      highTurnoverRule: HIGH_TURNOVER_RULE,
+    };
+
+    try {
+      const { data: turnoverData, error: turnoverError } = await supabaseStock
+        .from('daily_basic')
+        .select('ts_code, turnover_rate')
+        .abortSignal(requestSignal)
+        .eq('trade_date', latestDate)
+        .not('turnover_rate', 'is', null)
+        .limit(6000);
+
+      if (!turnoverError && turnoverData && turnoverData.length > 0) {
+        turnoverSnapshot = calculateTurnoverSnapshot(
+          (turnoverData as { ts_code: string; turnover_rate: number }[])
+        );
+      }
+    } catch (err) {
+      logger.warn('获取换手率快照失败:', err);
+    }
+
     // 优先尝试 RPC（数据库侧聚合，避免传输约 10000 行 amount 数据）
     const rpcName = 'get_daily_total_amount';
     if (!isRpcTemporarilyDisabled(rpcName)) {
@@ -1061,10 +1215,23 @@ async function fetchDailyTotalAmount(signal?: AbortSignal): Promise<{ totalAmoun
         if (!rpcError && rpcData) {
           clearRpcDisableFlag(rpcName);
           const payload = typeof rpcData === 'string' ? JSON.parse(rpcData) : rpcData;
+          const avgTurnover = turnoverSnapshot.avgTurnover || Number(payload.avgTurnover) || 0;
+          const turnoverMedian = turnoverSnapshot.turnoverMedian || Number(payload.turnoverMedian) || avgTurnover;
+          const highTurnoverRatio = turnoverSnapshot.highTurnoverRatio || Number(payload.highTurnoverRatio) || 0;
+          const amountVs5d = Number(payload.amountVs5d) || 0;
+          const turnoverZScore = Number(payload.turnoverZScore) || 0;
           return {
             totalAmount: Number(payload.totalAmount) || 0,
             amountChange: Number(payload.amountChange) || 0,
-            avgTurnover: Number(payload.avgTurnover) || 0
+            avgTurnover,
+            turnoverMedian,
+            highTurnoverRatio,
+            turnoverZScore,
+            amountVs5d,
+            activityLevel: getActivityLevel(turnoverZScore, highTurnoverRatio, amountVs5d),
+            baselineDays: Number(payload.baselineDays) || 0,
+            highTurnoverThreshold: turnoverSnapshot.highTurnoverThreshold || Number(payload.highTurnoverThreshold) || HIGH_TURNOVER_THRESHOLD,
+            highTurnoverRule: turnoverSnapshot.highTurnoverRule,
           };
         }
         if (rpcError && shouldDisableRpcAfterError(rpcError)) {
@@ -1079,18 +1246,6 @@ async function fetchDailyTotalAmount(signal?: AbortSignal): Promise<{ totalAmoun
     }
 
     // 降级：前端聚合（原逻辑）
-    const requestSignal = signal ?? new AbortController().signal;
-
-    const { data: latestDates } = await supabaseStock
-      .from('daily')
-      .select('trade_date')
-      .abortSignal(requestSignal)
-      .order('trade_date', { ascending: false })
-      .limit(1);
-
-    if (!latestDates || latestDates.length === 0) return null;
-
-    const latestDate = (latestDates as { trade_date: string }[])[0].trade_date;
 
     const { data: todayData } = await supabaseStock
       .from('daily')
@@ -1115,27 +1270,92 @@ async function fetchDailyTotalAmount(signal?: AbortSignal): Promise<{ totalAmoun
 
     const amountChange = prevAmount > 0 ? ((totalAmount - prevAmount) / prevAmount) * 100 : 0;
 
-    let avgTurnover = 0;
-    try {
-      const { data: turnoverData, error: turnoverError } = await supabaseStock
-        .from('daily_basic')
-        .select('turnover_rate')
-        .abortSignal(requestSignal)
-        .eq('trade_date', latestDate)
-        .not('turnover_rate', 'is', null)
-        .limit(1000);
+    const avgTurnover = turnoverSnapshot.avgTurnover;
+    const turnoverMedian = turnoverSnapshot.turnoverMedian;
+    const highTurnoverRatio = turnoverSnapshot.highTurnoverRatio;
 
-      if (!turnoverError && turnoverData && turnoverData.length > 0) {
-        const validData = (turnoverData as { turnover_rate: number }[]).filter(item => item.turnover_rate > 0);
-        if (validData.length > 0) {
-          avgTurnover = validData.reduce((sum, item) => sum + item.turnover_rate, 0) / validData.length;
+    let amountVs5d = 0;
+    try {
+      const recentDates = getRecentTradeDates(8).filter((date) => date !== latestDate).slice(0, 5);
+      if (recentDates.length > 0) {
+        const { data: historyAmountData, error: historyAmountError } = await supabaseStock
+          .from('daily')
+          .select('trade_date, amount')
+          .abortSignal(requestSignal)
+          .in('trade_date', recentDates);
+
+        if (!historyAmountError && historyAmountData && historyAmountData.length > 0) {
+          const totalsByDate = new Map<string, number>();
+          (historyAmountData as { trade_date: string; amount: number }[]).forEach((item) => {
+            totalsByDate.set(item.trade_date, (totalsByDate.get(item.trade_date) || 0) + (item.amount || 0));
+          });
+
+          const historyTotals = recentDates
+            .map((date) => (totalsByDate.get(date) || 0) / 100000000)
+            .filter((value) => value > 0);
+
+          if (historyTotals.length > 0) {
+            const avg5dAmount = historyTotals.reduce((sum, value) => sum + value, 0) / historyTotals.length;
+            amountVs5d = avg5dAmount > 0 ? ((totalAmount - avg5dAmount) / avg5dAmount) * 100 : 0;
+          }
         }
       }
     } catch (err) {
-      logger.warn('获取平均换手率失败:', err);
+      logger.warn('获取5日成交对比失败:', err);
     }
 
-    return { totalAmount, amountChange, avgTurnover };
+    let turnoverZScore = 0;
+    let baselineDays = 0;
+    try {
+      const turnoverBaselineDates = getRecentTradeDates(25);
+      const { data: baselineData, error: baselineError } = await supabaseStock
+        .from('daily_basic')
+        .select('trade_date, turnover_rate')
+        .abortSignal(requestSignal)
+        .in('trade_date', turnoverBaselineDates)
+        .not('turnover_rate', 'is', null)
+        .limit(200000);
+
+      if (!baselineError && baselineData && baselineData.length > 0) {
+        const dayStats = new Map<string, { sum: number; count: number }>();
+        (baselineData as { trade_date: string; turnover_rate: number }[]).forEach((item) => {
+          if (!item.turnover_rate || item.turnover_rate <= 0) return;
+          const current = dayStats.get(item.trade_date) || { sum: 0, count: 0 };
+          current.sum += item.turnover_rate;
+          current.count += 1;
+          dayStats.set(item.trade_date, current);
+        });
+
+        const baselineAverages = Array.from(dayStats.entries())
+          .filter(([tradeDate, stat]) => tradeDate !== latestDate && stat.count > 0)
+          .sort((a, b) => b[0].localeCompare(a[0]))
+          .map(([, stat]) => stat.sum / stat.count)
+          .slice(0, 20);
+
+        baselineDays = baselineAverages.length;
+        if (baselineAverages.length > 0) {
+          const mean = baselineAverages.reduce((sum, value) => sum + value, 0) / baselineAverages.length;
+          const std = calculateStd(baselineAverages);
+          turnoverZScore = std > 0 ? (avgTurnover - mean) / std : 0;
+        }
+      }
+    } catch (err) {
+      logger.warn('获取换手率基线失败:', err);
+    }
+
+    return {
+      totalAmount,
+      amountChange,
+      avgTurnover,
+      turnoverMedian,
+      highTurnoverRatio,
+      turnoverZScore,
+      amountVs5d,
+      activityLevel: getActivityLevel(turnoverZScore, highTurnoverRatio, amountVs5d),
+      baselineDays,
+      highTurnoverThreshold: turnoverSnapshot.highTurnoverThreshold,
+      highTurnoverRule: turnoverSnapshot.highTurnoverRule,
+    };
   } catch (error) {
     logger.error('获取成交额统计失败:', error);
     return null;
@@ -2060,10 +2280,11 @@ export async function fetchStockDetail(tsCode: string): Promise<StockBasic | nul
  */
 export async function fetchRealtimeQuote(tsCode: string) {
   try {
+    const candidateCodes = tsCode.includes('.') ? [tsCode, tsCode.split('.')[0]] : [tsCode];
     const { data, error } = await supabaseStock
       .from('realtime_quote_cache')
-      .select('ts_code, name, date, time, open, high, low, price, volume, amount, pre_close, change_pct, change_amount')
-      .eq('ts_code', tsCode)
+      .select('ts_code, name, date, time, open, high, low, price, volume, amount, pre_close, change_pct, change_amount, bid, ask, b1_v, b1_p, b2_v, b2_p, b3_v, b3_p, b4_v, b4_p, b5_v, b5_p, a1_v, a1_p, a2_v, a2_p, a3_v, a3_p, a4_v, a4_p, a5_v, a5_p')
+      .in('ts_code', candidateCodes)
       .order('date', { ascending: false })
       .order('time', { ascending: false })
       .limit(1);
@@ -2088,6 +2309,28 @@ export async function fetchRealtimeQuote(tsCode: string) {
         pre_close: number;
         change_pct: number;
         change_amount: number;
+        bid: number;
+        ask: number;
+        b1_v: number;
+        b1_p: number;
+        b2_v: number;
+        b2_p: number;
+        b3_v: number;
+        b3_p: number;
+        b4_v: number;
+        b4_p: number;
+        b5_v: number;
+        b5_p: number;
+        a1_v: number;
+        a1_p: number;
+        a2_v: number;
+        a2_p: number;
+        a3_v: number;
+        a3_p: number;
+        a4_v: number;
+        a4_p: number;
+        a5_v: number;
+        a5_p: number;
       };
       logger.log(`获取到 ${quote.name || quote.ts_code} 实时行情: ${quote.price} (${quote.date} ${quote.time})`);
       return quote;
@@ -2438,59 +2681,120 @@ export async function fetchStockMoneyFlow(tsCode: string, days = 5) {
  */
 export async function fetchTimeSeriesData(tsCode: string, preClose?: number) {
   try {
+    type LatestQuoteMeta = {
+      ts_code: string;
+      date: string;
+      time: string;
+    };
+
+    const candidateCodes = tsCode.includes('.') ? [tsCode, tsCode.split('.')[0]] : [tsCode];
+
     // 获取当日日期 (YYYYMMDD 格式)
     const today = new Date();
     const todayStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
 
-    const { data, error } = await supabaseStock
+    const { data: todayData, error: todayError } = await supabaseStock
       .from('realtime_quote_cache')
-      .select('time, price, volume, amount, pre_close')
-      .eq('ts_code', tsCode)
+      .select('ts_code, date, time, price, volume, amount, pre_close')
+      .in('ts_code', candidateCodes)
       .eq('date', todayStr)
       .order('time', { ascending: true });
 
-    if (error) {
-      logger.warn('获取分时数据失败:', error);
-      return generateTimeSeriesData(preClose);
+    if (todayError) {
+      logger.warn('获取分时数据失败:', todayError);
+      return [];
     }
 
-    if (data && data.length > 0) {
-      logger.log(`获取到 ${data.length} 条分时数据`);
+    let effectiveData = todayData || [];
+    let effectiveCode = candidateCodes[0];
+    let effectiveDate = todayStr;
+
+    if (effectiveData.length === 0) {
+      const { data: latestMeta, error: latestMetaError } = await supabaseStock
+        .from('realtime_quote_cache')
+        .select('ts_code, date, time')
+        .in('ts_code', candidateCodes)
+        .order('date', { ascending: false })
+        .order('time', { ascending: false })
+        .limit(1);
+
+      const latestMetaRows = (latestMeta ?? []) as LatestQuoteMeta[];
+
+      if (!latestMetaError && latestMetaRows.length > 0) {
+        effectiveCode = latestMetaRows[0].ts_code;
+        effectiveDate = latestMetaRows[0].date;
+
+        const { data: latestDateRows, error: latestDateRowsError } = await supabaseStock
+          .from('realtime_quote_cache')
+          .select('ts_code, date, time, price, volume, amount, pre_close')
+          .eq('ts_code', effectiveCode)
+          .eq('date', effectiveDate)
+          .order('time', { ascending: true });
+
+        if (!latestDateRowsError && latestDateRows) {
+          effectiveData = latestDateRows;
+        }
+      }
+    }
+
+    if (effectiveData.length > 0) {
+      logger.log(`获取到 ${effectiveData.length} 条分时数据 (${effectiveCode} @ ${effectiveDate})`);
 
       // 计算累计成交额和成交量，用于均价计算
       let cumulativeAmount = 0;
       let cumulativeVolume = 0;
 
-      return data.map((item: {
+      let prevVolume = 0;
+      let prevAmount = 0;
+
+      return effectiveData.map((item: {
+        ts_code: string;
+        date: string;
         time: string;
         price: number;
         volume: number;
         amount: number;
         pre_close: number;
-      }) => {
-        cumulativeAmount += item.amount || 0;
-        cumulativeVolume += item.volume || 0;
+      }, index: number) => {
+        const rawVolume = Number(item.volume || 0);
+        const rawAmount = Number(item.amount || 0);
 
-        // 分时均价 = 累计成交额 / 累计成交量
-        const avg_price = cumulativeVolume > 0
-          ? cumulativeAmount / cumulativeVolume
-          : item.price;
+        // realtime_quote_cache 常见为累计量，转换为分钟增量后再用于柱状图
+        const minuteVolume = index === 0
+          ? rawVolume
+          : (rawVolume >= prevVolume ? rawVolume - prevVolume : rawVolume);
+        const minuteAmount = index === 0
+          ? rawAmount
+          : (rawAmount >= prevAmount ? rawAmount - prevAmount : rawAmount);
+
+        prevVolume = rawVolume;
+        prevAmount = rawAmount;
+
+        cumulativeAmount += minuteAmount;
+        cumulativeVolume += minuteVolume;
+
+        // 优先使用原始累计值计算均价（更贴近东方财富口径），否则退化为分钟增量累计
+        const avgFromRaw = rawVolume > 0 ? rawAmount / rawVolume : 0;
+        const avg_price = avgFromRaw > 0
+          ? avgFromRaw
+          : (cumulativeVolume > 0 ? cumulativeAmount / cumulativeVolume : item.price);
 
         return {
+          date: item.date,
           time: item.time.substring(0, 5), // HH:MM:SS -> HH:MM
           price: item.price,
-          volume: item.volume,
-          avg_price: Number(avg_price.toFixed(2))
+          volume: minuteVolume,
+          avg_price: Number(avg_price.toFixed(2)),
+          pre_close: item.pre_close || preClose || 0,
         };
       });
     }
 
-    // 降级到模拟数据
-    logger.log('无分时数据，使用模拟数据');
-    return generateTimeSeriesData(preClose);
+    logger.warn(`无分时数据: realtime_quote_cache 中未找到 ${tsCode} (${candidateCodes.join(', ')})`);
+    return [];
   } catch (error) {
     logger.error('获取分时数据失败:', error);
-    return generateTimeSeriesData(preClose);
+    return [];
   }
 }
 
@@ -2499,12 +2803,15 @@ export async function fetchTimeSeriesData(tsCode: string, preClose?: number) {
  */
 export async function fetchStockDetailBundle(tsCode: string): Promise<StockDetailBundle> {
   const cacheKey = `stock:detail:bundle:${tsCode}`;
+  const inTradingSession = isCnMarketTradingSession();
+
   return requestWithCache(
     cacheKey,
     'fetchStockDetailBundle',
     async () => {
-      const [detail, kLineData, moneyFlowData] = await Promise.all([
+      const [detail, realtimeQuote, kLineData, moneyFlowData] = await Promise.all([
         fetchStockFullDetail(tsCode),
+        fetchRealtimeQuote(tsCode),
         fetchKLineData(tsCode, 60),
         fetchStockMoneyFlow(tsCode, 5),
       ]);
@@ -2514,12 +2821,13 @@ export async function fetchStockDetailBundle(tsCode: string): Promise<StockDetai
 
       return {
         detail,
+        realtimeQuote,
         kLineData,
         moneyFlowData,
         timeSeriesData,
       };
     },
-    { ttlMs: 15_000 }
+    { ttlMs: inTradingSession ? 0 : 15_000 }
   );
 }
 
@@ -2784,7 +3092,7 @@ export async function fetchHsgtTop10() {
  */
 export async function fetchMarketOverviewBundle(forceRefresh = false): Promise<MarketOverviewBundle> {
   return requestWithCache(
-    'market:overview:bundle',
+    'market:overview:bundle:v2',
     'fetchMarketOverviewBundle',
     async (signal) => {
       const rpcName = 'get_market_overview_bundle';
@@ -2807,13 +3115,21 @@ export async function fetchMarketOverviewBundle(forceRefresh = false): Promise<M
             if (payload?.error) {
               logger.warn('RPC get_market_overview_bundle 内部错误:', payload.message);
             } else {
+              const rpcDistribution = payload.upDownDistribution ?? null;
+              const rpcNorthFlow = payload.northFlow ?? null;
+              const enhancedSentiment = await fetchEnhancedSentiment({
+                distribution: rpcDistribution,
+                northFlowData: rpcNorthFlow,
+                signal,
+              });
+
               return {
                 indices: payload.indices || [],
                 sectors: payload.sectors || [],
                 limitUpList: payload.limitUpList || [],
-                upDownDistribution: payload.upDownDistribution || null,
-                enhancedSentiment: payload.enhancedSentiment || null,
-                northFlow: payload.northFlow || null,
+                upDownDistribution: rpcDistribution,
+                enhancedSentiment: enhancedSentiment || payload.enhancedSentiment || null,
+                northFlow: rpcNorthFlow,
                 hsgtTop10: payload.hsgtTop10 || [],
                 updateTime: payload.updateTime || getFormattedUpdateTime(),
               } as MarketOverviewBundle;
@@ -2843,7 +3159,6 @@ export async function fetchMarketOverviewBundle(forceRefresh = false): Promise<M
       const enhancedSentiment = await fetchEnhancedSentiment({
         distribution: upDownDistribution,
         northFlowData: northFlow,
-        dailyAmountData: null,
         signal,
       });
 

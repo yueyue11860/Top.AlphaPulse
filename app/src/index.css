@@ -42,6 +42,35 @@
     --chart-5: 270 67% 58%;
     --chart-grid: 220 15% 92%;
     --chart-text: 220 10% 45%;
+
+    /* 盯盘页主题变量 */
+    --watch-panel: 216 33% 97%;
+    --watch-card-border: 220 22% 82%;
+    --watch-card-highlight: 0 0% 100%;
+    --watch-frame-border: 218 27% 78%;
+    --watch-shadow: 217 49% 20%;
+    --watch-chip: 214 58% 94%;
+    --watch-chip-foreground: 219 48% 26%;
+    --watch-tab-active-bg: 0 0% 100%;
+    --watch-tab-active-foreground: 220 15% 15%;
+    --watch-chart-price: 217 91% 50%;
+    --watch-chart-average: 38 92% 50%;
+    --watch-chart-axis: 218 20% 76%;
+    --watch-tooltip-bg: 0 0% 100%;
+    --watch-tooltip-border: 220 15% 88%;
+    --watch-buy-fill: 142 71% 45%;
+    --watch-sell-fill: 0 84% 55%;
+    --watch-accent: 217 91% 50%;
+    --watch-accent-secondary: 316 73% 56%;
+    --watch-accent-tertiary: 189 82% 38%;
+    --watch-page-gradient:
+      radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 34%),
+      radial-gradient(circle at top right, rgba(15, 23, 42, 0.08), transparent 32%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(243, 247, 252, 0.96));
+    --watch-page-pattern:
+      linear-gradient(135deg, rgba(148, 163, 184, 0.1) 0, rgba(148, 163, 184, 0.1) 1px, transparent 1px, transparent 18px),
+      linear-gradient(45deg, rgba(148, 163, 184, 0.06) 0, rgba(148, 163, 184, 0.06) 1px, transparent 1px, transparent 22px);
+    --watch-pattern-opacity: 0.85;
   }
 
   .dark {
@@ -82,6 +111,294 @@
     --chart-5: 270 67% 65%;
     --chart-grid: 217 33% 18%;
     --chart-text: 215 20% 60%;
+
+    --watch-panel: 222 42% 13%;
+    --watch-card-border: 217 31% 26%;
+    --watch-card-highlight: 212 33% 96%;
+    --watch-frame-border: 217 31% 22%;
+    --watch-shadow: 222 56% 6%;
+    --watch-chip: 220 29% 18%;
+    --watch-chip-foreground: 214 32% 91%;
+    --watch-tab-active-bg: 218 33% 18%;
+    --watch-tab-active-foreground: 210 40% 96%;
+    --watch-chart-price: 217 91% 65%;
+    --watch-chart-average: 38 92% 60%;
+    --watch-chart-axis: 217 28% 28%;
+    --watch-tooltip-bg: 222 47% 11%;
+    --watch-tooltip-border: 217 33% 20%;
+    --watch-buy-fill: 142 71% 50%;
+    --watch-sell-fill: 0 84% 60%;
+    --watch-accent: 217 91% 65%;
+    --watch-accent-secondary: 316 73% 68%;
+    --watch-accent-tertiary: 189 78% 52%;
+    --watch-page-gradient:
+      radial-gradient(circle at top left, rgba(96, 165, 250, 0.18), transparent 34%),
+      radial-gradient(circle at top right, rgba(56, 189, 248, 0.1), transparent 28%),
+      linear-gradient(180deg, rgba(7, 15, 30, 0.97), rgba(10, 18, 34, 0.98));
+    --watch-page-pattern:
+      linear-gradient(135deg, rgba(51, 65, 85, 0.28) 0, rgba(51, 65, 85, 0.28) 1px, transparent 1px, transparent 18px),
+      linear-gradient(45deg, rgba(51, 65, 85, 0.18) 0, rgba(51, 65, 85, 0.18) 1px, transparent 1px, transparent 22px);
+    --watch-pattern-opacity: 0.65;
+  }
+
+  .watch-theme-business {
+    --background: 216 30% 96%;
+    --foreground: 219 32% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 219 32% 17%;
+    --muted: 214 27% 92%;
+    --muted-foreground: 217 16% 38%;
+    --border: 216 27% 85%;
+    --input: 216 27% 85%;
+    --primary: 214 63% 43%;
+    --secondary: 216 26% 93%;
+    --watch-panel: 214 32% 95%;
+    --watch-card-border: 215 25% 82%;
+    --watch-shadow: 219 35% 21%;
+    --watch-chip: 213 57% 92%;
+    --watch-chip-foreground: 216 45% 24%;
+    --watch-tab-active-bg: 0 0% 100%;
+    --watch-tab-active-foreground: 219 32% 17%;
+    --watch-chart-price: 214 73% 45%;
+    --watch-chart-average: 36 88% 48%;
+    --watch-accent: 214 63% 43%;
+    --watch-accent-secondary: 213 38% 55%;
+    --watch-accent-tertiary: 192 61% 39%;
+    --watch-page-gradient:
+      radial-gradient(circle at top left, rgba(96, 127, 167, 0.18), transparent 32%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(240, 245, 251, 0.98));
+  }
+
+  .watch-theme-cyberpunk {
+    --background: 225 55% 8%;
+    --foreground: 194 100% 95%;
+    --card: 226 48% 11%;
+    --card-foreground: 194 100% 95%;
+    --muted: 229 34% 16%;
+    --muted-foreground: 210 28% 68%;
+    --border: 219 42% 22%;
+    --input: 219 42% 22%;
+    --primary: 186 100% 61%;
+    --secondary: 228 34% 17%;
+    --watch-panel: 229 42% 14%;
+    --watch-card-border: 195 100% 38%;
+    --watch-shadow: 240 43% 4%;
+    --watch-chip: 228 42% 18%;
+    --watch-chip-foreground: 190 100% 82%;
+    --watch-tab-active-bg: 230 48% 19%;
+    --watch-tab-active-foreground: 194 100% 95%;
+    --watch-chart-price: 189 100% 60%;
+    --watch-chart-average: 320 100% 68%;
+    --watch-chart-axis: 218 38% 26%;
+    --watch-tooltip-bg: 228 44% 10%;
+    --watch-tooltip-border: 195 100% 32%;
+    --watch-accent: 186 100% 61%;
+    --watch-accent-secondary: 320 100% 68%;
+    --watch-accent-tertiary: 44 100% 59%;
+    --watch-page-gradient:
+      radial-gradient(circle at top left, rgba(96, 247, 255, 0.24), transparent 28%),
+      radial-gradient(circle at top right, rgba(255, 70, 199, 0.22), transparent 32%),
+      linear-gradient(180deg, rgba(6, 10, 23, 0.98), rgba(9, 17, 31, 0.99));
+    --watch-page-pattern:
+      linear-gradient(90deg, rgba(96, 247, 255, 0.14) 0, rgba(96, 247, 255, 0.14) 1px, transparent 1px, transparent 18px),
+      linear-gradient(0deg, rgba(255, 70, 199, 0.1) 0, rgba(255, 70, 199, 0.1) 1px, transparent 1px, transparent 22px);
+    --watch-pattern-opacity: 0.82;
+  }
+
+  .watch-theme-hello-kitty {
+    --background: 336 100% 98%;
+    --foreground: 340 35% 19%;
+    --card: 0 0% 100%;
+    --card-foreground: 340 35% 19%;
+    --muted: 336 58% 95%;
+    --muted-foreground: 339 16% 45%;
+    --border: 336 48% 88%;
+    --input: 336 48% 88%;
+    --primary: 338 100% 66%;
+    --secondary: 334 58% 95%;
+    --watch-panel: 334 70% 96%;
+    --watch-card-border: 337 54% 84%;
+    --watch-shadow: 338 45% 38%;
+    --watch-chip: 338 100% 92%;
+    --watch-chip-foreground: 340 38% 27%;
+    --watch-tab-active-bg: 0 0% 100%;
+    --watch-tab-active-foreground: 340 35% 19%;
+    --watch-chart-price: 338 89% 63%;
+    --watch-chart-average: 24 96% 60%;
+    --watch-chart-axis: 337 28% 77%;
+    --watch-tooltip-bg: 0 0% 100%;
+    --watch-tooltip-border: 337 38% 84%;
+    --watch-accent: 338 100% 66%;
+    --watch-accent-secondary: 355 90% 62%;
+    --watch-accent-tertiary: 200 88% 57%;
+    --watch-page-gradient:
+      radial-gradient(circle at top left, rgba(255, 166, 196, 0.28), transparent 30%),
+      radial-gradient(circle at top right, rgba(255, 106, 147, 0.18), transparent 34%),
+      linear-gradient(180deg, rgba(255, 249, 251, 0.98), rgba(255, 241, 245, 0.98));
+  }
+
+  .watch-theme-doraemon {
+    --background: 202 100% 97%;
+    --foreground: 204 53% 18%;
+    --card: 0 0% 100%;
+    --card-foreground: 204 53% 18%;
+    --muted: 198 70% 93%;
+    --muted-foreground: 203 22% 42%;
+    --border: 201 61% 84%;
+    --input: 201 61% 84%;
+    --primary: 204 92% 52%;
+    --secondary: 198 70% 93%;
+    --watch-panel: 199 82% 94%;
+    --watch-card-border: 201 54% 81%;
+    --watch-shadow: 205 54% 24%;
+    --watch-chip: 198 91% 90%;
+    --watch-chip-foreground: 205 52% 25%;
+    --watch-tab-active-bg: 0 0% 100%;
+    --watch-tab-active-foreground: 204 53% 18%;
+    --watch-chart-price: 205 88% 52%;
+    --watch-chart-average: 45 96% 52%;
+    --watch-chart-axis: 200 34% 76%;
+    --watch-tooltip-bg: 0 0% 100%;
+    --watch-tooltip-border: 201 47% 84%;
+    --watch-accent: 204 92% 52%;
+    --watch-accent-secondary: 45 96% 52%;
+    --watch-accent-tertiary: 191 84% 39%;
+    --watch-page-gradient:
+      radial-gradient(circle at top left, rgba(31, 151, 255, 0.18), transparent 30%),
+      radial-gradient(circle at bottom right, rgba(255, 215, 69, 0.16), transparent 30%),
+      linear-gradient(180deg, rgba(244, 252, 255, 0.99), rgba(229, 245, 255, 0.98));
+  }
+
+  .watch-theme-black-gold {
+    --background: 32 34% 8%;
+    --foreground: 39 41% 90%;
+    --card: 30 28% 12%;
+    --card-foreground: 39 41% 90%;
+    --muted: 31 20% 17%;
+    --muted-foreground: 34 16% 63%;
+    --border: 34 26% 24%;
+    --input: 34 26% 24%;
+    --primary: 40 78% 58%;
+    --secondary: 30 20% 16%;
+    --watch-panel: 31 24% 15%;
+    --watch-card-border: 39 36% 30%;
+    --watch-shadow: 24 37% 3%;
+    --watch-chip: 35 30% 18%;
+    --watch-chip-foreground: 39 58% 78%;
+    --watch-tab-active-bg: 31 24% 18%;
+    --watch-tab-active-foreground: 39 41% 90%;
+    --watch-chart-price: 41 88% 58%;
+    --watch-chart-average: 23 82% 58%;
+    --watch-chart-axis: 34 22% 28%;
+    --watch-tooltip-bg: 28 28% 10%;
+    --watch-tooltip-border: 35 24% 24%;
+    --watch-accent: 41 88% 58%;
+    --watch-accent-secondary: 19 76% 60%;
+    --watch-accent-tertiary: 160 54% 44%;
+    --watch-page-gradient:
+      radial-gradient(circle at top left, rgba(217, 165, 74, 0.22), transparent 28%),
+      linear-gradient(180deg, rgba(12, 9, 5, 0.99), rgba(22, 17, 10, 0.99));
+  }
+
+  .watch-theme-retro-terminal {
+    --background: 128 18% 7%;
+    --foreground: 134 82% 82%;
+    --card: 128 18% 10%;
+    --card-foreground: 134 82% 82%;
+    --muted: 127 17% 14%;
+    --muted-foreground: 129 26% 60%;
+    --border: 129 28% 21%;
+    --input: 129 28% 21%;
+    --primary: 138 83% 67%;
+    --secondary: 129 17% 14%;
+    --watch-panel: 129 19% 12%;
+    --watch-card-border: 129 30% 26%;
+    --watch-shadow: 126 40% 3%;
+    --watch-chip: 129 22% 15%;
+    --watch-chip-foreground: 134 72% 76%;
+    --watch-tab-active-bg: 128 24% 16%;
+    --watch-tab-active-foreground: 134 82% 82%;
+    --watch-chart-price: 138 83% 67%;
+    --watch-chart-average: 85 74% 61%;
+    --watch-chart-axis: 129 23% 26%;
+    --watch-tooltip-bg: 129 20% 9%;
+    --watch-tooltip-border: 129 28% 24%;
+    --watch-accent: 138 83% 67%;
+    --watch-accent-secondary: 85 74% 61%;
+    --watch-accent-tertiary: 166 64% 48%;
+    --watch-page-gradient:
+      radial-gradient(circle at top left, rgba(103, 242, 139, 0.18), transparent 26%),
+      linear-gradient(180deg, rgba(7, 11, 7, 0.98), rgba(13, 18, 13, 0.99));
+    --watch-page-pattern:
+      linear-gradient(180deg, rgba(103, 242, 139, 0.06) 0, rgba(103, 242, 139, 0.06) 1px, transparent 1px, transparent 4px),
+      linear-gradient(90deg, rgba(103, 242, 139, 0.02) 0, rgba(103, 242, 139, 0.02) 1px, transparent 1px, transparent 24px);
+    --watch-pattern-opacity: 0.78;
+  }
+
+  .watch-theme-deep-ocean {
+    --background: 202 64% 9%;
+    --foreground: 192 58% 92%;
+    --card: 201 52% 13%;
+    --card-foreground: 192 58% 92%;
+    --muted: 200 42% 18%;
+    --muted-foreground: 196 24% 66%;
+    --border: 196 44% 24%;
+    --input: 196 44% 24%;
+    --primary: 184 100% 39%;
+    --secondary: 200 42% 18%;
+    --watch-panel: 200 48% 15%;
+    --watch-card-border: 192 52% 28%;
+    --watch-shadow: 211 53% 4%;
+    --watch-chip: 199 41% 18%;
+    --watch-chip-foreground: 186 62% 78%;
+    --watch-tab-active-bg: 198 44% 19%;
+    --watch-tab-active-foreground: 192 58% 92%;
+    --watch-chart-price: 184 100% 39%;
+    --watch-chart-average: 193 89% 55%;
+    --watch-chart-axis: 196 34% 28%;
+    --watch-tooltip-bg: 201 54% 10%;
+    --watch-tooltip-border: 194 40% 24%;
+    --watch-accent: 184 100% 39%;
+    --watch-accent-secondary: 193 89% 55%;
+    --watch-accent-tertiary: 163 62% 47%;
+    --watch-page-gradient:
+      radial-gradient(circle at top left, rgba(0, 194, 199, 0.22), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.12), transparent 32%),
+      linear-gradient(180deg, rgba(4, 16, 27, 0.98), rgba(6, 24, 36, 0.99));
+  }
+
+  .watch-theme-paper-morning {
+    --background: 40 42% 95%;
+    --foreground: 213 24% 23%;
+    --card: 39 48% 97%;
+    --card-foreground: 213 24% 23%;
+    --muted: 38 31% 90%;
+    --muted-foreground: 212 16% 42%;
+    --border: 37 26% 81%;
+    --input: 37 26% 81%;
+    --primary: 212 31% 50%;
+    --secondary: 38 31% 90%;
+    --watch-panel: 39 36% 92%;
+    --watch-card-border: 38 24% 79%;
+    --watch-shadow: 210 20% 34%;
+    --watch-chip: 39 45% 88%;
+    --watch-chip-foreground: 214 25% 30%;
+    --watch-tab-active-bg: 0 0% 100%;
+    --watch-tab-active-foreground: 213 24% 23%;
+    --watch-chart-price: 212 31% 50%;
+    --watch-chart-average: 24 68% 53%;
+    --watch-chart-axis: 35 18% 72%;
+    --watch-tooltip-bg: 39 48% 97%;
+    --watch-tooltip-border: 38 24% 81%;
+    --watch-accent: 212 31% 50%;
+    --watch-accent-secondary: 12 62% 58%;
+    --watch-accent-tertiary: 186 48% 42%;
+    --watch-page-gradient:
+      radial-gradient(circle at top left, rgba(99, 128, 163, 0.16), transparent 32%),
+      linear-gradient(180deg, rgba(247, 242, 232, 0.98), rgba(241, 236, 224, 0.98));
+    --watch-page-pattern:
+      linear-gradient(0deg, rgba(195, 185, 161, 0.18) 0, rgba(195, 185, 161, 0.18) 1px, transparent 1px, transparent 12px),
+      linear-gradient(90deg, rgba(195, 185, 161, 0.08) 0, rgba(195, 185, 161, 0.08) 1px, transparent 1px, transparent 18px);
   }
 }
 
@@ -147,4 +464,84 @@
 *::before,
 *::after {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+}
+
+.watch-theme-shell {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.75rem;
+  border: 1px solid hsl(var(--watch-frame-border) / 0.72);
+  background-color: hsl(var(--background));
+  background-image: var(--watch-page-gradient);
+  box-shadow: 0 28px 70px hsl(var(--watch-shadow) / 0.18), inset 0 1px 0 hsl(var(--watch-card-highlight) / 0.25);
+  padding: 1rem;
+  isolation: isolate;
+}
+
+.watch-theme-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--watch-page-pattern);
+  opacity: var(--watch-pattern-opacity);
+  pointer-events: none;
+}
+
+.watch-theme-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.watch-theme-card {
+  background: hsl(var(--card) / 0.8);
+  border-color: hsl(var(--watch-card-border) / 0.7) !important;
+  box-shadow: 0 16px 34px hsl(var(--watch-shadow) / 0.12), inset 0 1px 0 hsl(var(--watch-card-highlight) / 0.25);
+  backdrop-filter: blur(18px);
+}
+
+.watch-theme-stat {
+  background: linear-gradient(180deg, hsl(var(--watch-panel) / 0.88), hsl(var(--card) / 0.78));
+  border: 1px solid hsl(var(--watch-card-border) / 0.58);
+  box-shadow: inset 0 1px 0 hsl(var(--watch-card-highlight) / 0.25);
+}
+
+.watch-theme-chip {
+  background: hsl(var(--watch-chip) / 0.92);
+  color: hsl(var(--watch-chip-foreground));
+  border: 1px solid hsl(var(--watch-card-border) / 0.42);
+}
+
+.watch-theme-tabs {
+  gap: 0.25rem;
+  border: 1px solid hsl(var(--watch-card-border) / 0.52);
+  background: hsl(var(--watch-panel) / 0.72);
+  border-radius: 1rem;
+  padding: 0.35rem;
+}
+
+.watch-theme-tab {
+  border-radius: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.watch-theme-tab[data-state='active'] {
+  background: hsl(var(--watch-tab-active-bg));
+  color: hsl(var(--watch-tab-active-foreground));
+  box-shadow: 0 10px 22px hsl(var(--watch-shadow) / 0.16), inset 0 1px 0 hsl(var(--watch-card-highlight) / 0.24);
+}
+
+.watch-theme-control {
+  border-color: hsl(var(--watch-card-border) / 0.6) !important;
+  background: hsl(var(--watch-panel) / 0.68) !important;
+  color: hsl(var(--foreground));
+  box-shadow: inset 0 1px 0 hsl(var(--watch-card-highlight) / 0.25);
+}
+
+.watch-theme-control:hover {
+  background: hsl(var(--watch-panel) / 0.92) !important;
+}
+
+.watch-theme-interactive:hover,
+.watch-theme-table-row:hover {
+  background: hsl(var(--muted) / 0.42);
 }

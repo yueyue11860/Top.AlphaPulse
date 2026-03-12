@@ -1,0 +1,1 @@
+export const ENABLE_STOCK_DETAIL_WATCH_THEME = false;
