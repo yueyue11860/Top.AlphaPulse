@@ -964,6 +964,26 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['picker_alert_log']['Insert']>;
       };
+
+      user_profiles: {
+        Row: {
+          user_id: string;
+          username: string;
+          email: string;
+          avatar_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          username: string;
+          email: string;
+          avatar_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['user_profiles']['Insert']>;
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -978,6 +998,7 @@ export type IndexDailyRow = Database['public']['Tables']['index_daily']['Row'];
 export type ThsIndexRow = Database['public']['Tables']['ths_index']['Row'];
 export type ThsDailyRow = Database['public']['Tables']['ths_daily']['Row'];
 export type ThsMemberRow = Database['public']['Tables']['ths_member']['Row'];
+export type UserProfileRow = Database['public']['Tables']['user_profiles']['Row'];
 export type LimitListDRow = Database['public']['Tables']['limit_list_d']['Row'];
 export type StkLimitRow = Database['public']['Tables']['stk_limit']['Row'];
 export type TopListRow = Database['public']['Tables']['top_list']['Row'];

@@ -260,6 +260,48 @@ export interface StockFilter {
   value2?: any;
 }
 
+export interface WatchlistGroup {
+  id: number;
+  name: string;
+  isDefault: boolean;
+  sortOrder: number;
+  itemCount: number;
+  createdAt: string;
+}
+
+export interface WatchlistItem {
+  id: number;
+  groupId: number;
+  groupName: string;
+  tsCode: string;
+  stockName: string;
+  market: string | null;
+  note: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  latestTradeDate: string | null;
+  latestPrice: number | null;
+  latestPctChg: number | null;
+  turnoverRate: number | null;
+  totalMv: number | null;
+}
+
+export interface WatchlistOverview {
+  groups: WatchlistGroup[];
+  items: WatchlistItem[];
+  defaultGroupId: number | null;
+  updatedAt: string | null;
+}
+
+export interface AddWatchlistItemInput {
+  tsCode: string;
+  stockName?: string | null;
+  market?: string | null;
+  groupId?: number | null;
+  note?: string | null;
+}
+
 // 选股策略
 export interface StockStrategy {
   id: string;

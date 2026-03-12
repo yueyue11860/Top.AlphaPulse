@@ -1,6 +1,6 @@
+import { useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { X, ZoomIn, ImageIcon } from 'lucide-react';
 import { IMPORTANCE_CONFIG, CATEGORY_CONFIG, type NewsCategory } from '@/lib/newsClassifier';
 import { sourceColorMap, type NewsCardItem } from './NewsItemCard';
@@ -14,17 +14,36 @@ interface NewsDetailModalProps {
 export function NewsDetailModal({ news, onClose, onZoomImage }: NewsDetailModalProps) {
   const impCfg = IMPORTANCE_CONFIG[news.importance] || IMPORTANCE_CONFIG.normal;
 
+  useEffect(() => {
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="bg-background rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden shadow-2xl border border-border"
+        className="bg-background flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border shadow-2xl sm:max-h-[88vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <div className="flex shrink-0 items-center justify-between border-b border-border p-4">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge className={cn('text-xs', sourceColorMap[news.sourceKey] || 'bg-muted text-muted-foreground')}>
               {news.source}
@@ -53,37 +72,37 @@ export function NewsDetailModal({ news, onClose, onZoomImage }: NewsDetailModalP
         </div>
 
         {/* 内容 */}
-        <ScrollArea className="max-h-[calc(85vh-120px)]">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="p-6">
             {news.title && (
-              <h2 className="text-xl font-bold text-foreground mb-4">{news.title}</h2>
+              <h2 className="mb-4 text-xl font-bold text-foreground">{news.title}</h2>
             )}
-            <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-wrap">
+            <p className="whitespace-pre-wrap text-base leading-relaxed text-muted-foreground">
               {news.content}
             </p>
 
             {/* 图片展示 */}
             {news.images && news.images.length > 0 && (
               <div className="mt-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                <div className="mb-3 flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">相关图片 ({news.images.length})</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   {news.images.map((img, idx) => (
                     <div
                       key={idx}
-                      className="relative group cursor-pointer rounded-lg overflow-hidden border border-border"
+                      className="relative group cursor-pointer overflow-hidden rounded-lg border border-border"
                       onClick={(e) => { e.stopPropagation(); onZoomImage(img); }}
                     >
                       <img
                         src={img}
                         alt={`图片 ${idx + 1}`}
-                        className="w-full h-40 object-cover transition-transform group-hover:scale-105"
+                        className="h-40 w-full object-cover transition-transform group-hover:scale-105"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
+                        <ZoomIn className="h-8 w-8 text-white opacity-0 transition-opacity group-hover:opacity-100" />
                       </div>
                     </div>
                   ))}
@@ -91,7 +110,7 @@ export function NewsDetailModal({ news, onClose, onZoomImage }: NewsDetailModalP
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
     </div>
   );

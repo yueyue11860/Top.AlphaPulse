@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { WatchlistToggleButton } from '@/components/stock/WatchlistToggleButton';
 import {
   Dialog,
   DialogContent,
@@ -810,11 +811,19 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
                       ))}
                     </div>
                     {onSelectStock && (
-                      <div className="pt-1">
+                      <div className="pt-1 flex flex-wrap gap-2">
                         <Button variant="outline" size="sm" className="h-8 border-border text-muted-foreground hover:bg-muted" onClick={() => onSelectStock(stock.code)}>
                           <ExternalLink className="mr-1 h-3.5 w-3.5" />
                           查看详情
                         </Button>
+                        <WatchlistToggleButton
+                          tsCode={stock.code}
+                          stockName={stock.name}
+                          market={stock.market}
+                          size="sm"
+                          variant="outline"
+                          showLabel
+                        />
                       </div>
                     )}
                   </div>

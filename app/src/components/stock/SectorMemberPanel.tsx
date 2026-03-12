@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { fetchSectorMembers } from '@/services/sectorService';
 import type { SectorMemberResult } from '@/services/sectorService';
+import { WatchlistToggleButton } from '@/components/stock/WatchlistToggleButton';
 
 type SortField = 'pct_chg' | 'amount' | 'turnover_rate' | 'total_mv';
 type SortOrder = 'asc' | 'desc';
@@ -251,7 +252,15 @@ export const SectorMemberPanel = memo(function SectorMemberPanel({
                       {stock.ts_code}
                     </TableCell>
                     <TableCell className="font-medium text-xs text-foreground">
-                      {stock.name}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate">{stock.name}</span>
+                        <WatchlistToggleButton
+                          tsCode={stock.ts_code}
+                          stockName={stock.name}
+                          variant="ghost"
+                          size="icon-sm"
+                        />
+                      </div>
                     </TableCell>
                     <TableCell className={cn('text-right font-mono text-xs', getChangeColor(stock.pct_chg))}>
                       {formatNumber(stock.close)}

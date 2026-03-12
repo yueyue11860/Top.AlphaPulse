@@ -5,9 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { UserAccountMenu } from '@/components/UserAccountMenu';
 import { searchStocks } from '@/services/stockDetailService';
 import { fetchUnreadAlertSummary, markAlertLogRead } from '@/services/stockPickerPersistenceService';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { useAuth } from '@/contexts/AuthContext';
+import { useWatchlist } from '@/contexts/WatchlistContext';
 import {
   Search,
   Home,
@@ -16,11 +19,10 @@ import {
   Filter,
   Brain,
   Newspaper,
-  User,
   Menu,
-  X,
   Trophy,
   Bell,
+  Star,
 } from 'lucide-react';
 
 interface NavigationProps {
@@ -37,6 +39,7 @@ const navItems = [
   { id: 'screener', label: '智能选股', icon: Filter },
   { id: 'ai', label: 'AI分析', icon: Brain },
   { id: 'news', label: '资讯中心', icon: Newspaper },
+  { id: 'watchlist', label: '自选股', icon: Star },
 ];
 
 interface StockSearchResult {
@@ -46,7 +49,7 @@ interface StockSearchResult {
 }
 
 export function Navigation({ activeTab, onTabChange, onSelectStock }: NavigationProps) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isNavDrawerOpen, setIsNavDrawerOpen] = useState(false);
   const [isAlertSheetOpen, setIsAlertSheetOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
@@ -54,8 +57,10 @@ export function Navigation({ activeTab, onTabChange, onSelectStock }: Navigation
   const [isSearching, setIsSearching] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { user, openAuthDialog } = useAuth();
+  const { count: watchlistCount } = useWatchlist();
   const { data: unreadAlertSummary, mutate: mutateAlertSummary } = useSWR(
-    'picker:unread-alert-summary',
+    user ? 'picker:unread-alert-summary' : null,
     () => fetchUnreadAlertSummary(),
     {
       dedupingInterval: 30_000,
@@ -116,12 +121,24 @@ export function Navigation({ activeTab, onTabChange, onSelectStock }: Navigation
     onTabChange('screener');
   };
 
+  const handleSelectNavItem = (tab: string) => {
+    onTabChange(tab);
+    setIsNavDrawerOpen(false);
+  };
+
   const handleMarkAlertRead = async (logId: number) => {
     const updated = await markAlertLogRead(logId);
     if (updated) {
       await mutateAlertSummary();
     }
   };
+
+  const renderNavCount = (itemId: string) => {
+    if (itemId !== 'watchlist' || watchlistCount <= 0) return null;
+    return <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1 text-[10px]">{watchlistCount}</Badge>;
+  };
+
+  const activeNavItem = navItems.find((item) => item.id === activeTab);
 
   const searchDropdown = showDropdown && (
     <div className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 overflow-hidden min-w-[280px]">
@@ -145,42 +162,40 @@ export function Navigation({ activeTab, onTabChange, onSelectStock }: Navigation
 
   return (
     <nav className="sticky top-0 z-50 w-full bg-background border-b border-border shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-14">
+      <div className="w-full px-3 sm:px-4 lg:px-5 xl:px-6">
+        <div className="flex h-14 items-center gap-2 sm:gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={() => setIsNavDrawerOpen(true)}
+            aria-label="打开页面导航"
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+
           {/* Logo */}
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 shrink items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <TrendingUp className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-lg font-bold text-foreground hidden sm:block">TOP.AlphaPulse</span>
+            <div className="min-w-0">
+              <span className="hidden text-lg font-bold text-foreground sm:block">TOP.AlphaPulse</span>
+              <span className="block truncate text-sm font-medium text-muted-foreground sm:hidden">
+                {activeNavItem?.label ?? '页面导航'}
+              </span>
+            </div>
           </div>
 
-          {/* Desktop Navigation */}
-          <div className="hidden lg:flex items-center gap-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Button
-                  key={item.id}
-                  variant={activeTab === item.id ? 'default' : 'ghost'}
-                  size="sm"
-                  className={cn(
-                    'gap-1.5',
-                    activeTab === item.id
-                      ? 'bg-primary hover:bg-primary/90 text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  )}
-                  onClick={() => onTabChange(item.id)}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="text-sm">{item.label}</span>
-                </Button>
-              );
-            })}
+          <div className="hidden min-w-0 flex-1 lg:flex">
+            <div className="ml-2 inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground">
+              {activeNavItem && <activeNavItem.icon className="h-4 w-4" />}
+              <span className="truncate">{activeNavItem?.label ?? '页面导航'}</span>
+            </div>
           </div>
 
           {/* Search & User & Theme */}
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             <div className="relative hidden sm:block" ref={searchRef}>
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -189,7 +204,7 @@ export function Navigation({ activeTab, onTabChange, onSelectStock }: Navigation
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
-                className="w-48 pl-9 h-8 bg-muted border-border text-foreground placeholder:text-muted-foreground text-sm"
+                className="h-8 w-44 bg-muted pl-9 text-sm text-foreground placeholder:text-muted-foreground lg:w-40 xl:w-48"
               />
               {isSearching && (
                 <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
@@ -201,7 +216,13 @@ export function Navigation({ activeTab, onTabChange, onSelectStock }: Navigation
               variant="ghost"
               size="icon"
               className="relative text-muted-foreground hover:text-foreground"
-              onClick={() => setIsAlertSheetOpen(true)}
+              onClick={() => {
+                if (!user) {
+                  openAuthDialog();
+                  return;
+                }
+                setIsAlertSheetOpen(true);
+              }}
             >
               <Bell className="w-5 h-5" />
               {unreadAlertCount > 0 && (
@@ -210,24 +231,30 @@ export function Navigation({ activeTab, onTabChange, onSelectStock }: Navigation
                 </span>
               )}
             </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-              <User className="w-5 h-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden text-muted-foreground hover:text-foreground"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            >
-              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </Button>
+            <UserAccountMenu />
           </div>
         </div>
+      </div>
 
-        {/* Mobile Navigation */}
-        {isMobileMenuOpen && (
-          <div className="lg:hidden py-3 border-t border-border">
-            <div className="flex flex-col gap-1">
+      <Sheet open={isNavDrawerOpen} onOpenChange={setIsNavDrawerOpen}>
+        <SheetContent side="left" className="w-[300px] border-r border-border px-0 sm:max-w-none">
+          <SheetHeader className="border-b border-border px-5 pb-4">
+            <SheetTitle className="flex items-center gap-3 text-left">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
+                <TrendingUp className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div>
+                <div className="text-base font-semibold text-foreground">TOP.AlphaPulse</div>
+                <div className="text-sm font-normal text-muted-foreground">页面切换</div>
+              </div>
+            </SheetTitle>
+            <SheetDescription className="text-left">
+              从左侧抽屉快速进入各个核心模块。
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
+            <div className="space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -235,39 +262,39 @@ export function Navigation({ activeTab, onTabChange, onSelectStock }: Navigation
                     key={item.id}
                     variant={activeTab === item.id ? 'default' : 'ghost'}
                     className={cn(
-                      'justify-start gap-2',
+                      'h-11 w-full justify-start gap-3 rounded-xl px-4 text-sm',
                       activeTab === item.id
-                        ? 'bg-primary hover:bg-primary/90 text-primary-foreground'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                        ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                        : 'text-foreground hover:bg-accent hover:text-foreground'
                     )}
-                    onClick={() => {
-                      onTabChange(item.id);
-                      setIsMobileMenuOpen(false);
-                    }}
+                    onClick={() => handleSelectNavItem(item.id)}
                   >
-                    <Icon className="w-4 h-4" />
-                    <span>{item.label}</span>
+                    <Icon className="h-4 w-4" />
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {renderNavCount(item.id)}
                   </Button>
                 );
               })}
             </div>
-            <div className="mt-3 sm:hidden">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+
+            <div className="mt-5 border-t border-border pt-5 sm:hidden">
+              <div className="relative" ref={searchRef}>
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
                   placeholder="搜索股票代码/名称..."
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
                   onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
-                  className="w-full pl-9 h-9 bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                  className="h-9 w-full bg-muted pl-9 text-foreground placeholder:text-muted-foreground"
                 />
                 {searchDropdown}
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </SheetContent>
+      </Sheet>
+
       <Sheet open={isAlertSheetOpen} onOpenChange={setIsAlertSheetOpen}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           <SheetHeader>

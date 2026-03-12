@@ -19,9 +19,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { ENABLE_STOCK_DETAIL_WATCH_THEME } from '@/config/featureFlags';
 import { useWatchTheme } from '@/hooks/useWatchTheme';
 import { WatchThemeSwitcher } from '@/components/stock/WatchThemeSwitcher';
+import { WatchlistToggleButton } from '@/components/stock/WatchlistToggleButton';
 import { getWatchThemeClassName } from '@/lib/watchThemes';
 import {
-  Star,
   Bell,
   Share2,
   TrendingUp,
@@ -519,7 +519,6 @@ function StockDetailView({
   const [chartType, setChartType] = useState<ChartType>('timeseries');
   const [kLinePeriod, setKLinePeriod] = useState<KLinePeriod>('day');
   const [isChartFullscreen, setIsChartFullscreen] = useState(false);
-  const [isFavorited, setIsFavorited] = useState(false);
   const [selectedAnnouncementId, setSelectedAnnouncementId] = useState<string | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -755,14 +754,14 @@ function StockDetailView({
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
+              <WatchlistToggleButton
+                tsCode={stockData.ts_code}
+                stockName={stockData.name}
+                market={stockData.market}
                 size="icon"
+                variant="ghost"
                 className={cn('text-muted-foreground hover:text-yellow-400', watchThemeEnabled && 'watch-theme-control')}
-                onClick={() => setIsFavorited(!isFavorited)}
-              >
-                <Star className={cn('w-5 h-5', isFavorited && 'fill-yellow-400 text-yellow-400')} />
-              </Button>
+              />
               <Button variant="ghost" size="icon" className={cn('text-muted-foreground hover:text-muted-foreground', watchThemeEnabled && 'watch-theme-control')}>
                 <Bell className="w-5 h-5" />
               </Button>
@@ -1410,9 +1409,11 @@ function RelatedEventSheet({
 // 主组件：股票列表 + 详情切换
 export function StockDetail({
   initialStockCode,
+  onBack,
   onOpenNews,
 }: {
   initialStockCode?: string | null;
+  onBack?: () => void;
   onOpenNews?: (tab: 'announcement' | 'report' | 'calendar', stockCode?: string | null) => void;
 }) {
   const [selectedStock, setSelectedStock] = useState<string | null>(initialStockCode ?? null);
@@ -1429,7 +1430,13 @@ export function StockDetail({
     return (
       <StockDetailView
         stockCode={selectedStock}
-        onBack={() => setSelectedStock(null)}
+        onBack={() => {
+          if (onBack) {
+            onBack();
+            return;
+          }
+          setSelectedStock(null);
+        }}
         onOpenNews={onOpenNews}
       />
     );

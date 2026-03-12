@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { WatchlistToggleButton } from '@/components/stock/WatchlistToggleButton';
 import { cn, getChangeColor } from '@/lib/utils';
 import {
   fetchMarketOverviewBundle,
@@ -267,15 +268,24 @@ export function MarketOverview({ onSelectStock }: MarketOverviewProps) {
               <div
                 key={item.ts_code}
                 className="p-3 rounded-lg bg-muted hover:bg-accent transition-colors cursor-pointer"
+                onClick={() => onSelectStock?.(item.ts_code)}
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={cn(
-                    'w-5 h-5 flex items-center justify-center text-xs font-bold rounded',
-                    index < 3 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400' : 'text-muted-foreground'
-                  )}>
-                    {index + 1}
-                  </span>
-                  <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={cn(
+                      'w-5 h-5 flex items-center justify-center text-xs font-bold rounded',
+                      index < 3 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400' : 'text-muted-foreground'
+                    )}>
+                      {index + 1}
+                    </span>
+                    <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
+                  </div>
+                  <WatchlistToggleButton
+                    tsCode={item.ts_code}
+                    stockName={item.name}
+                    variant="ghost"
+                    size="icon-sm"
+                  />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className={cn('text-sm font-mono font-medium', getChangeColor(item.change))}>
