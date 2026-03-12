@@ -8,6 +8,7 @@ import {
 import useSWR from 'swr';
 import { toast } from 'sonner';
 import type { AddWatchlistItemInput, WatchlistGroup, WatchlistItem, WatchlistOverview } from '@/types';
+import { isCnMarketTradingSession } from '@/lib/marketTime';
 import {
   addWatchlistItem,
   createWatchlistGroup,
@@ -18,6 +19,7 @@ import {
   renameWatchlistGroup,
   updateWatchlistItemNote,
 } from '@/services/watchlistService';
+import type { StockQuoteItem } from '@/services/stockDetailService';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface WatchlistContextValue {
@@ -31,6 +33,7 @@ interface WatchlistContextValue {
   contains: (tsCode: string) => boolean;
   openAuthDialog: () => void;
   refresh: () => Promise<void>;
+  applySnapshotQuotes: (quotes: StockQuoteItem[]) => void;
   addItem: (input: AddWatchlistItemInput) => Promise<boolean>;
   removeItemByCode: (tsCode: string, stockName?: string) => Promise<boolean>;
   toggleItem: (input: AddWatchlistItemInput) => Promise<boolean>;
@@ -57,8 +60,10 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
     () => fetchWatchlistOverview(),
     {
       dedupingInterval: 10_000,
+      refreshInterval: user && isCnMarketTradingSession() ? 15_000 : 0,
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
+      refreshWhenHidden: false,
       keepPreviousData: false,
     },
   );
@@ -78,6 +83,50 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     await mutate();
   }, [mutate, user]);
+
+  const applySnapshotQuotes = useCallback((quotes: StockQuoteItem[]) => {
+    if (quotes.length === 0) return;
+
+    const quoteMap = new Map(quotes.map((quote) => [quote.ts_code, quote]));
+    void mutate((current) => {
+      const base = current ?? EMPTY_OVERVIEW;
+      let hasChanged = false;
+
+      const items = base.items.map((item) => {
+        const quote = quoteMap.get(item.tsCode);
+        if (!quote) return item;
+
+        const nextItem = {
+          ...item,
+          stockName: item.stockName || quote.name,
+          latestTradeDate: quote.trade_date || item.latestTradeDate,
+          latestPrice: quote.close,
+          latestPctChg: quote.pct_chg,
+          turnoverRate: quote.turnover_rate,
+          totalMv: quote.total_mv,
+        };
+
+        if (
+          nextItem.latestTradeDate !== item.latestTradeDate ||
+          nextItem.latestPrice !== item.latestPrice ||
+          nextItem.latestPctChg !== item.latestPctChg ||
+          nextItem.turnoverRate !== item.turnoverRate ||
+          nextItem.totalMv !== item.totalMv
+        ) {
+          hasChanged = true;
+        }
+
+        return nextItem;
+      });
+
+      if (!hasChanged) return base;
+      return {
+        ...base,
+        items,
+        updatedAt: new Date().toISOString(),
+      };
+    }, { revalidate: false });
+  }, [mutate]);
 
   const addItemAction = useCallback(async (input: AddWatchlistItemInput) => {
     if (!requireAuth()) return false;
@@ -188,6 +237,7 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
     contains: (tsCode: string) => stockCodeSet.has(tsCode),
     openAuthDialog,
     refresh,
+    applySnapshotQuotes,
     addItem: addItemAction,
     removeItemByCode: removeItemAction,
     toggleItem,
@@ -196,7 +246,7 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
     deleteGroup: deleteGroupAction,
     moveItem: moveItemAction,
     updateItemNote: updateItemNoteAction,
-  }), [addItemAction, authLoading, createGroupAction, deleteGroupAction, isAuthenticated, isLoading, moveItemAction, openAuthDialog, overview, refresh, removeItemAction, renameGroupAction, stockCodeSet, toggleItem, updateItemNoteAction]);
+  }), [addItemAction, applySnapshotQuotes, authLoading, createGroupAction, deleteGroupAction, isAuthenticated, isLoading, moveItemAction, openAuthDialog, overview, refresh, removeItemAction, renameGroupAction, stockCodeSet, toggleItem, updateItemNoteAction]);
 
   return <WatchlistContext.Provider value={value}>{children}</WatchlistContext.Provider>;
 }

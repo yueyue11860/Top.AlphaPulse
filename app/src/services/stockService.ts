@@ -13,7 +13,6 @@ import {
   getRecentTradeDates,
   stableStringify,
   mapWithConcurrency,
-  fetchNewShareNames,
   getFormattedUpdateTime,
 } from './serviceUtils';
 import {
@@ -1860,6 +1859,156 @@ export interface StockQuoteItem {
   trade_date: string;   // 交易日期
 }
 
+export type StockQuoteSnapshot = {
+  ts_code: string;
+  symbol: string;
+  name: string;
+  industry: string;
+  market: string;
+  quote_date: string;
+  quote_time: string;
+  fetch_time: string | null;
+  price: number;
+  change_pct: number;
+  change_amount: number;
+  open: number;
+  high: number;
+  low: number;
+  pre_close: number;
+  volume: number;
+  amount: number;
+  turnover_rate: number;
+  pe_ttm: number;
+  pb: number;
+  total_mv: number;
+  source: string;
+};
+
+const SNAPSHOT_SORT_COLUMN_MAP: Record<'amount' | 'pct_chg' | 'turnover_rate' | 'total_mv', keyof StockQuoteSnapshot> = {
+  amount: 'amount',
+  pct_chg: 'change_pct',
+  turnover_rate: 'turnover_rate',
+  total_mv: 'total_mv',
+};
+
+export function mapSnapshotToStockQuoteItem(snapshot: StockQuoteSnapshot): StockQuoteItem {
+  return {
+    ts_code: snapshot.ts_code,
+    symbol: snapshot.symbol,
+    name: snapshot.name,
+    industry: snapshot.industry,
+    close: Number(snapshot.price) || 0,
+    change: Number(snapshot.change_amount) || 0,
+    pct_chg: Number(snapshot.change_pct) || 0,
+    vol: Number(snapshot.volume) || 0,
+    amount: Number(snapshot.amount) || 0,
+    open: Number(snapshot.open) || 0,
+    high: Number(snapshot.high) || 0,
+    low: Number(snapshot.low) || 0,
+    pre_close: Number(snapshot.pre_close) || 0,
+    turnover_rate: Number(snapshot.turnover_rate) || 0,
+    pe_ttm: Number(snapshot.pe_ttm) || 0,
+    pb: Number(snapshot.pb) || 0,
+    total_mv: Number(snapshot.total_mv) || 0,
+    trade_date: snapshot.quote_date,
+  };
+}
+
+export async function fetchStockQuoteItemsByCodes(tsCodes: string[]): Promise<StockQuoteItem[]> {
+  const codes = Array.from(new Set(tsCodes.filter(Boolean)));
+  if (codes.length === 0) return [];
+
+  try {
+    const batchSize = 100;
+    const snapshots: StockQuoteSnapshot[] = [];
+
+    for (let index = 0; index < codes.length; index += batchSize) {
+      const batch = codes.slice(index, index + batchSize);
+      const { data, error } = await supabaseStock
+        .from('quote_latest_snapshot')
+        .select('ts_code, symbol, name, industry, market, quote_date, quote_time, fetch_time, price, change_pct, change_amount, open, high, low, pre_close, volume, amount, turnover_rate, pe_ttm, pb, total_mv, source')
+        .in('ts_code', batch);
+
+      if (error) {
+        logger.warn('批量获取 quote_latest_snapshot 失败:', error);
+        continue;
+      }
+
+      snapshots.push(...((data || []) as StockQuoteSnapshot[]));
+    }
+
+    return snapshots.map(mapSnapshotToStockQuoteItem);
+  } catch (error) {
+    logger.warn('获取股票快照列表失败:', error);
+    return [];
+  }
+}
+
+function mapSnapshotToSectorMemberStock(snapshot: StockQuoteSnapshot, fallbackName?: string): SectorMemberStock {
+  return {
+    ts_code: snapshot.ts_code,
+    name: snapshot.name || fallbackName || snapshot.ts_code,
+    close: Number(snapshot.price) || 0,
+    pct_chg: Number(snapshot.change_pct) || 0,
+    change: Number(snapshot.change_amount) || 0,
+    open: Number(snapshot.open) || 0,
+    high: Number(snapshot.high) || 0,
+    low: Number(snapshot.low) || 0,
+    pre_close: Number(snapshot.pre_close) || 0,
+    vol: Number(snapshot.volume) || 0,
+    amount: Number(snapshot.amount) || 0,
+    turnover_rate: Number(snapshot.turnover_rate) || 0,
+    pe_ttm: Number(snapshot.pe_ttm) || 0,
+    total_mv: Number(snapshot.total_mv) || 0,
+  };
+}
+
+async function fetchStockQuoteSnapshot(tsCode: string): Promise<StockQuoteSnapshot | null> {
+  const rpcName = 'get_stock_quote_snapshot';
+
+  if (!isRpcTemporarilyDisabled(rpcName)) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabaseStock as any).rpc(rpcName, { target_code: tsCode });
+      if (!error && data) {
+        clearRpcDisableFlag(rpcName);
+        const payload = typeof data === 'string' ? JSON.parse(data) : data;
+        if (payload && Object.keys(payload).length > 0) {
+          return payload as StockQuoteSnapshot;
+        }
+      }
+
+      if (error && shouldDisableRpcAfterError(error)) {
+        disableRpcTemporarily(rpcName);
+      }
+    } catch (rpcErr) {
+      if (shouldDisableRpcAfterError(rpcErr)) {
+        disableRpcTemporarily(rpcName);
+      }
+      logger.warn('RPC get_stock_quote_snapshot 调用失败，降级为表查询:', rpcErr);
+    }
+  }
+
+  try {
+    const symbol = tsCode.split('.')[0];
+    const { data, error } = await supabaseStock
+      .from('quote_latest_snapshot')
+      .select('ts_code, symbol, name, industry, market, quote_date, quote_time, fetch_time, price, change_pct, change_amount, open, high, low, pre_close, volume, amount, turnover_rate, pe_ttm, pb, total_mv, source')
+      .or(`ts_code.eq.${tsCode},symbol.eq.${symbol}`)
+      .limit(1);
+
+    if (error) {
+      logger.warn('查询 quote_latest_snapshot 失败:', error);
+      return null;
+    }
+
+    return ((data || [])[0] as StockQuoteSnapshot | undefined) || null;
+  } catch (error) {
+    logger.warn('获取股票快照失败:', error);
+    return null;
+  }
+}
+
 /**
  * 获取股票列表带行情数据（分页）
  * 通过 daily_basic 表获取，按成交额降序
@@ -1882,341 +2031,72 @@ async function fetchStockListWithQuotesRaw(params: {
       sortOrder = 'desc'
     } = params;
 
-    // 获取最新交易日期
-    const { data: latestData } = await supabaseStock
-      .from('daily_basic')
-      .select('trade_date')
-      .abortSignal(requestSignal)
-      .order('trade_date', { ascending: false })
-      .limit(1);
+    const snapshotRpcName = 'get_stock_list_snapshot';
+    if (!isRpcTemporarilyDisabled(snapshotRpcName)) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rpcClient = supabaseStock as any;
+        let rpcQuery = rpcClient.rpc(snapshotRpcName, {
+          keyword_text: keyword ?? null,
+          limit_count: limit,
+          offset_count: offset,
+          sort_by: sortBy,
+          sort_order: sortOrder,
+        });
 
-    const latestDate = (latestData as { trade_date: string }[] | null)?.[0]?.trade_date;
-    if (!latestDate) {
-      logger.warn('未找到最新交易日期');
+        if (typeof rpcQuery?.abortSignal === 'function') {
+          rpcQuery = rpcQuery.abortSignal(requestSignal);
+        }
+
+        const { data: rpcData, error: rpcError } = await rpcQuery;
+        if (!rpcError && rpcData) {
+          clearRpcDisableFlag(snapshotRpcName);
+          const payload = typeof rpcData === 'string' ? JSON.parse(rpcData) : rpcData;
+          const snapshotItems = Array.isArray(payload?.data) ? payload.data as StockQuoteItem[] : [];
+          const snapshotTotal = Number(payload?.total ?? 0);
+
+          if (snapshotTotal > 0 || Boolean(keyword)) {
+            logger.log(`快照列表命中: ${snapshotItems.length} 条，total=${snapshotTotal}`);
+            return {
+              data: snapshotItems,
+              total: snapshotTotal,
+            };
+          }
+        }
+
+        if (rpcError && shouldDisableRpcAfterError(rpcError)) {
+          disableRpcTemporarily(snapshotRpcName);
+        }
+      } catch (rpcErr) {
+        if (shouldDisableRpcAfterError(rpcErr)) {
+          disableRpcTemporarily(snapshotRpcName);
+        }
+        logger.warn('RPC get_stock_list_snapshot 调用失败，降级到 snapshot 表查询:', rpcErr);
+      }
+    }
+    const sortColumn = SNAPSHOT_SORT_COLUMN_MAP[sortBy];
+    let query = supabaseStock
+      .from('quote_latest_snapshot')
+      .select('ts_code, symbol, name, industry, market, quote_date, quote_time, fetch_time, price, change_pct, change_amount, open, high, low, pre_close, volume, amount, turnover_rate, pe_ttm, pb, total_mv, source', { count: 'exact' })
+      .abortSignal(requestSignal)
+      .order(sortColumn, { ascending: sortOrder === 'asc', nullsFirst: false })
+      .order('ts_code', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    if (keyword) {
+      query = query.or(`name.ilike.%${keyword}%,ts_code.ilike.%${keyword}%,symbol.ilike.%${keyword}%,industry.ilike.%${keyword}%`);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      logger.error('查询 quote_latest_snapshot 列表失败:', error);
       return { data: [], total: 0 };
     }
 
-    logger.log('最新交易日期:', latestDate);
-
-    // 如果有关键词搜索，先从 stock_basic 表获取匹配的股票代码
-    let matchedCodes: string[] | null = null;
-    if (keyword) {
-      const { data: basicData } = await supabaseStock
-        .from('stock_basic')
-        .select('ts_code')
-        .abortSignal(requestSignal)
-        .or(`name.ilike.%${keyword}%,ts_code.ilike.%${keyword}%,symbol.ilike.%${keyword}%`);
-
-      if (basicData && basicData.length > 0) {
-        matchedCodes = basicData.map((item: { ts_code: string }) => item.ts_code);
-      } else {
-        return { data: [], total: 0 };
-      }
-    }
-
-    // 获取总数
-    let countQuery = supabaseStock
-      .from('daily_basic')
-      .select('ts_code', { count: 'exact', head: true })
-      .abortSignal(requestSignal)
-      .eq('trade_date', latestDate);
-
-    if (matchedCodes) {
-      countQuery = countQuery.in('ts_code', matchedCodes);
-    }
-
-    const { count } = await countQuery;
-    const total = count || 0;
-
-    // 判断排序字段在哪个表
-    // pct_chg 和 amount 在 daily 表，turnover_rate 和 total_mv 在 daily_basic 表
-    const dailyFields = ['pct_chg', 'amount'];
-    const sortFromDaily = dailyFields.includes(sortBy);
-
-    let tsCodes: string[] = [];
-
-    if (sortFromDaily) {
-      // 从 daily 表排序获取数据
-      let dailyQuery = supabaseStock
-        .from('daily')
-        .select('ts_code, open, high, low, close, pre_close, change, pct_chg, vol, amount')
-        .abortSignal(requestSignal)
-        .eq('trade_date', latestDate)
-        .order(sortBy, { ascending: sortOrder === 'asc' })
-        .range(offset, offset + limit - 1);
-
-      if (matchedCodes) {
-        dailyQuery = dailyQuery.in('ts_code', matchedCodes);
-      }
-
-      const { data: dailyData, error: dailyError } = await dailyQuery;
-
-      if (dailyError) {
-        logger.error('获取daily数据失败:', dailyError);
-        return { data: [], total: 0 };
-      }
-
-      if (!dailyData || dailyData.length === 0) {
-        return { data: [], total: 0 };
-      }
-
-      tsCodes = dailyData.map((item: { ts_code: string }) => item.ts_code);
-
-      // 获取 daily_basic 数据
-      const { data: basicData, error: basicError } = await supabaseStock
-        .from('daily_basic')
-        .select(`
-          ts_code,
-          trade_date,
-          close,
-          turnover_rate,
-          turnover_rate_f,
-          volume_ratio,
-          pe,
-          pe_ttm,
-          pb,
-          ps,
-          ps_ttm,
-          dv_ratio,
-          dv_ttm,
-          total_share,
-          float_share,
-          free_share,
-          total_mv,
-          circ_mv
-        `)
-        .abortSignal(requestSignal)
-        .eq('trade_date', latestDate)
-        .in('ts_code', tsCodes);
-
-      if (basicError) {
-        logger.error('获取daily_basic数据失败:', basicError);
-      }
-
-      // 获取股票基本信息
-      const { data: stockBasicData, error: stockBasicError } = await supabaseStock
-        .from('stock_basic')
-        .select('ts_code, symbol, name, industry')
-        .abortSignal(requestSignal)
-        .in('ts_code', tsCodes);
-
-      if (stockBasicError) {
-        logger.error('获取stock_basic数据失败:', stockBasicError);
-      }
-
-      // 构建映射
-      const basicMap = new Map(
-        (basicData || []).map((item: { ts_code: string }) => [item.ts_code, item])
-      );
-
-      const stockBasicMap = new Map(
-        (stockBasicData || []).map((item: { ts_code: string }) => [item.ts_code, item])
-      );
-
-      // 找出 stock_basic 中没有的股票代码（可能是新股）
-      const missingCodes = tsCodes.filter(code => !stockBasicMap.has(code));
-
-      // 从 new_share 表获取新股名称
-      const newShareNameMap = missingCodes.length > 0
-        ? await fetchNewShareNames(missingCodes)
-        : new Map<string, { name: string; industry: string }>();
-
-      // 按 dailyData 的顺序合并数据（保持排序）
-      const result: StockQuoteItem[] = dailyData.map((daily: {
-        ts_code: string;
-        open: number;
-        high: number;
-        low: number;
-        close: number;
-        pre_close: number;
-        change: number;
-        pct_chg: number;
-        vol: number;
-        amount: number;
-      }) => {
-        const basic = basicMap.get(daily.ts_code) as {
-          trade_date: string;
-          close: number;
-          turnover_rate: number;
-          pe_ttm: number;
-          pb: number;
-          total_mv: number;
-        } | undefined;
-        const stockBasic = stockBasicMap.get(daily.ts_code) as {
-          symbol: string;
-          name: string;
-          industry: string | null;
-        } | undefined;
-
-        // 降级获取新股名称
-        const newShareInfo = newShareNameMap.get(daily.ts_code);
-
-        return {
-          ts_code: daily.ts_code,
-          symbol: stockBasic?.symbol || daily.ts_code.split('.')[0],
-          name: stockBasic?.name || newShareInfo?.name || daily.ts_code,
-          industry: stockBasic?.industry || newShareInfo?.industry || '',
-          close: daily.close || 0,
-          change: daily.change || 0,
-          pct_chg: daily.pct_chg || 0,
-          vol: daily.vol || 0,
-          amount: daily.amount || 0,
-          open: daily.open || 0,
-          high: daily.high || 0,
-          low: daily.low || 0,
-          pre_close: daily.pre_close || 0,
-          turnover_rate: basic?.turnover_rate || 0,
-          pe_ttm: basic?.pe_ttm || 0,
-          pb: basic?.pb || 0,
-          total_mv: basic?.total_mv || 0,
-          trade_date: basic?.trade_date || latestDate
-        };
-      });
-
-      logger.log(`获取到 ${result.length} 只股票行情数据，共 ${total} 只`);
-      return { data: result, total };
-
-    } else {
-      // 从 daily_basic 表排序获取数据
-      let query = supabaseStock
-        .from('daily_basic')
-        .select(`
-          ts_code,
-          trade_date,
-          close,
-          turnover_rate,
-          turnover_rate_f,
-          volume_ratio,
-          pe,
-          pe_ttm,
-          pb,
-          ps,
-          ps_ttm,
-          dv_ratio,
-          dv_ttm,
-          total_share,
-          float_share,
-          free_share,
-          total_mv,
-          circ_mv
-        `)
-        .abortSignal(requestSignal)
-        .eq('trade_date', latestDate)
-        .order(sortBy, { ascending: sortOrder === 'asc' })
-        .range(offset, offset + limit - 1);
-
-      if (matchedCodes) {
-        query = query.in('ts_code', matchedCodes);
-      }
-
-      const { data: basicData, error: basicError } = await query;
-
-      if (basicError) {
-        logger.error('获取daily_basic数据失败:', basicError);
-        return { data: [], total: 0 };
-      }
-
-      if (!basicData || basicData.length === 0) {
-        return { data: [], total: 0 };
-      }
-
-      tsCodes = basicData.map((item: { ts_code: string }) => item.ts_code);
-
-      // 获取日线数据
-      const { data: dailyData, error: dailyError } = await supabaseStock
-        .from('daily')
-        .select('ts_code, open, high, low, close, pre_close, change, pct_chg, vol, amount')
-        .abortSignal(requestSignal)
-        .eq('trade_date', latestDate)
-        .in('ts_code', tsCodes);
-
-      if (dailyError) {
-        logger.error('获取daily数据失败:', dailyError);
-      }
-
-      // 获取股票基本信息
-      const { data: stockBasicData, error: stockBasicError } = await supabaseStock
-        .from('stock_basic')
-        .select('ts_code, symbol, name, industry')
-        .abortSignal(requestSignal)
-        .in('ts_code', tsCodes);
-
-      if (stockBasicError) {
-        logger.error('获取stock_basic数据失败:', stockBasicError);
-      }
-
-      // 构建映射
-      const dailyMap = new Map(
-        (dailyData || []).map((item: { ts_code: string }) => [item.ts_code, item])
-      );
-
-      const stockBasicMap = new Map(
-        (stockBasicData || []).map((item: { ts_code: string }) => [item.ts_code, item])
-      );
-
-      // 找出 stock_basic 中没有的股票代码（可能是新股）
-      const missingCodes = tsCodes.filter(code => !stockBasicMap.has(code));
-
-      // 从 new_share 表获取新股名称
-      const newShareNameMap = missingCodes.length > 0
-        ? await fetchNewShareNames(missingCodes)
-        : new Map<string, { name: string; industry: string }>();
-
-      // 按 basicData 的顺序合并数据（保持排序）
-      const result: StockQuoteItem[] = basicData.map((basic: {
-        ts_code: string;
-        trade_date: string;
-        close: number;
-        turnover_rate: number;
-        pe_ttm: number;
-        pb: number;
-        total_mv: number;
-      }) => {
-        const daily = dailyMap.get(basic.ts_code) as {
-          open: number;
-          high: number;
-          low: number;
-          close: number;
-          pre_close: number;
-          change: number;
-          pct_chg: number;
-          vol: number;
-          amount: number;
-        } | undefined;
-        const stockBasic = stockBasicMap.get(basic.ts_code) as {
-          symbol: string;
-          name: string;
-          industry: string | null;
-        } | undefined;
-
-        // 降级获取新股名称
-        const newShareInfo = newShareNameMap.get(basic.ts_code);
-
-        return {
-          ts_code: basic.ts_code,
-          symbol: stockBasic?.symbol || basic.ts_code.split('.')[0],
-          name: stockBasic?.name || newShareInfo?.name || basic.ts_code,
-          industry: stockBasic?.industry || newShareInfo?.industry || '',
-          close: daily?.close || basic.close || 0,
-          change: daily?.change || 0,
-          pct_chg: daily?.pct_chg || 0,
-          vol: daily?.vol || 0,
-          amount: daily?.amount || 0,
-          open: daily?.open || 0,
-          high: daily?.high || 0,
-          low: daily?.low || 0,
-          pre_close: daily?.pre_close || 0,
-          turnover_rate: basic.turnover_rate || 0,
-          pe_ttm: basic.pe_ttm || 0,
-          pb: basic.pb || 0,
-          total_mv: basic.total_mv || 0,
-          trade_date: basic.trade_date
-        };
-      });
-
-      logger.log(`获取到 ${result.length} 只股票行情数据，共 ${total} 只`);
-      return { data: result, total };
-    }
+    const items = ((data || []) as StockQuoteSnapshot[]).map(mapSnapshotToStockQuoteItem);
+    logger.log(`获取到 ${items.length} 只股票快照行情数据，共 ${count || 0} 只`);
+    return { data: items, total: count || 0 };
   } catch (error) {
     logger.error('获取股票列表行情失败:', error);
     return { data: [], total: 0 };
@@ -2235,7 +2115,7 @@ export async function fetchStockListWithQuotes(params: {
     cacheKey,
     'fetchStockListWithQuotes',
     (signal) => fetchStockListWithQuotesRaw(params, signal),
-    { ttlMs: 10_000 }
+    { ttlMs: isCnMarketTradingSession() ? 5_000 : 10_000 }
   );
 }
 
@@ -2445,7 +2325,7 @@ export async function fetchKLineData(tsCode: string, days = 60) {
 export async function fetchStockFullDetail(tsCode: string) {
   try {
     // 并行获取多个数据源
-    const [basicResult, dailyResult, dailyBasicResult] = await Promise.all([
+    const [basicResult, dailyResult, dailyBasicResult, snapshotQuote] = await Promise.all([
       // 股票基本信息
       supabaseStock
         .from('stock_basic')
@@ -2465,7 +2345,8 @@ export async function fetchStockFullDetail(tsCode: string) {
         .select('turnover_rate, turnover_rate_f, volume_ratio, pe, pe_ttm, pb, ps, ps_ttm, dv_ratio, dv_ttm, total_share, float_share, free_share, total_mv, circ_mv')
         .eq('ts_code', tsCode)
         .order('trade_date', { ascending: false })
-        .limit(1)
+        .limit(1),
+      fetchStockQuoteSnapshot(tsCode),
     ]);
 
     let basic = basicResult.data as {
@@ -2570,24 +2451,24 @@ export async function fetchStockFullDetail(tsCode: string) {
       list_date: basic.list_date || '',
 
       // 行情数据 (来自 daily 表)
-      trade_date: daily?.trade_date || '',
-      open: daily?.open || 0,
-      high: daily?.high || 0,
-      low: daily?.low || 0,
-      close: daily?.close || 0,
-      pre_close: daily?.pre_close || 0,
-      change: daily?.change || 0,
-      pct_chg: daily?.pct_chg || 0,
-      vol: daily?.vol || 0,  // 成交量（手）
-      amount: daily?.amount || 0,  // 成交额（千元）
+      trade_date: snapshotQuote?.quote_date || daily?.trade_date || '',
+      open: snapshotQuote?.open || daily?.open || 0,
+      high: snapshotQuote?.high || daily?.high || 0,
+      low: snapshotQuote?.low || daily?.low || 0,
+      close: snapshotQuote?.price || daily?.close || 0,
+      pre_close: snapshotQuote?.pre_close || daily?.pre_close || 0,
+      change: snapshotQuote?.change_amount || daily?.change || 0,
+      pct_chg: snapshotQuote?.change_pct || daily?.pct_chg || 0,
+      vol: snapshotQuote?.volume || daily?.vol || 0,  // 成交量（手）
+      amount: snapshotQuote?.amount || daily?.amount || 0,  // 成交额（千元）
 
       // 估值指标 (来自 daily_basic 表)
-      turnover_rate: dailyBasic?.turnover_rate || 0,  // 换手率
+      turnover_rate: snapshotQuote?.turnover_rate || dailyBasic?.turnover_rate || 0,  // 换手率
       turnover_rate_f: dailyBasic?.turnover_rate_f || 0,  // 换手率(自由流通)
       volume_ratio: dailyBasic?.volume_ratio || 0,  // 量比
       pe: dailyBasic?.pe || 0,  // 市盈率(静态)
-      pe_ttm: dailyBasic?.pe_ttm || 0,  // 市盈率(TTM)
-      pb: dailyBasic?.pb || 0,  // 市净率
+      pe_ttm: snapshotQuote?.pe_ttm || dailyBasic?.pe_ttm || 0,  // 市盈率(TTM)
+      pb: snapshotQuote?.pb || dailyBasic?.pb || 0,  // 市净率
       ps: dailyBasic?.ps || 0,  // 市销率
       ps_ttm: dailyBasic?.ps_ttm || 0,  // 市销率(TTM)
       dv_ratio: dailyBasic?.dv_ratio || 0,  // 股息率
@@ -2595,7 +2476,7 @@ export async function fetchStockFullDetail(tsCode: string) {
       total_share: dailyBasic?.total_share || 0,  // 总股本(万股)
       float_share: dailyBasic?.float_share || 0,  // 流通股本(万股)
       free_share: dailyBasic?.free_share || 0,  // 自由流通股本(万股)
-      total_mv: dailyBasic?.total_mv || 0,  // 总市值(万元)
+      total_mv: snapshotQuote?.total_mv || dailyBasic?.total_mv || 0,  // 总市值(万元)
       circ_mv: dailyBasic?.circ_mv || 0  // 流通市值(万元)
     };
   } catch (error) {
@@ -2785,7 +2666,7 @@ export async function fetchTimeSeriesData(tsCode: string, preClose?: number) {
           price: item.price,
           volume: minuteVolume,
           avg_price: Number(avg_price.toFixed(2)),
-          pre_close: item.pre_close || preClose || 0,
+          pre_close: preClose || item.pre_close || 0,
         };
       });
     }
@@ -4003,65 +3884,32 @@ async function fetchStocksDailyData(
   const codes = stockList.map(s => s.ts_code);
   const nameMap = new Map(stockList.map(s => [s.ts_code, s.name]));
 
-  // 获取最新交易日
-  const { data: latestData } = await supabaseStock
-    .from('daily')
-    .select('trade_date')
-    .order('trade_date', { ascending: false })
-    .limit(1);
-
-  const latestDate = (latestData as { trade_date: string }[] | null)?.[0]?.trade_date;
-  if (!latestDate) return [];
-
-  // 批量查询行情（分批避免超限）
+  // 批量查询 snapshot（分批避免 URL 过长）
   const batchSize = 100;
   const results: SectorMemberStock[] = [];
 
   for (let i = 0; i < codes.length; i += batchSize) {
     const batch = codes.slice(i, i + batchSize);
 
-    const [dailyRes, basicRes] = await Promise.all([
-      supabaseStock
-        .from('daily')
-        .select('ts_code, close, pct_chg, change, open, high, low, pre_close, vol, amount')
-        .eq('trade_date', latestDate)
-        .in('ts_code', batch),
-      supabaseStock
-        .from('daily_basic')
-        .select('ts_code, turnover_rate, pe_ttm, total_mv')
-        .eq('trade_date', latestDate)
-        .in('ts_code', batch),
-    ]);
+    const { data, error } = await supabaseStock
+      .from('quote_latest_snapshot')
+      .select('ts_code, symbol, name, industry, market, quote_date, quote_time, fetch_time, price, change_pct, change_amount, open, high, low, pre_close, volume, amount, turnover_rate, pe_ttm, pb, total_mv, source')
+      .in('ts_code', batch);
 
-    const dailyMap = new Map(
-      ((dailyRes.data || []) as Record<string, unknown>[]).map(d => [String(d.ts_code), d])
-    );
-    const basicMap = new Map(
-      ((basicRes.data || []) as Record<string, unknown>[]).map(d => [String(d.ts_code), d])
+    if (error) {
+      logger.warn('查询板块成分股 snapshot 失败:', error);
+      continue;
+    }
+
+    const snapshotMap = new Map(
+      ((data || []) as StockQuoteSnapshot[]).map((item) => [item.ts_code, item])
     );
 
     for (const code of batch) {
-      const d = (dailyMap.get(code) || {}) as Record<string, unknown>;
-      const b = (basicMap.get(code) || {}) as Record<string, unknown>;
-      // 只添加有行情数据的股票
-      if (dailyMap.has(code)) {
-        results.push({
-          ts_code: code,
-          name: nameMap.get(code) || code,
-          close: Number(d.close) || 0,
-          pct_chg: Number(d.pct_chg) || 0,
-          change: Number(d.change) || 0,
-          open: Number(d.open) || 0,
-          high: Number(d.high) || 0,
-          low: Number(d.low) || 0,
-          pre_close: Number(d.pre_close) || 0,
-          vol: Number(d.vol) || 0,
-          amount: Number(d.amount) || 0,
-          turnover_rate: Number(b.turnover_rate) || 0,
-          pe_ttm: Number(b.pe_ttm) || 0,
-          total_mv: Number(b.total_mv) || 0,
-        });
-      }
+      const snapshot = snapshotMap.get(code);
+      if (!snapshot) continue;
+
+      results.push(mapSnapshotToSectorMemberStock(snapshot, nameMap.get(code)));
     }
   }
 

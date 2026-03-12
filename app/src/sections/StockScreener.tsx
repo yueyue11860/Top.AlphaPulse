@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { WatchlistToggleButton } from '@/components/stock/WatchlistToggleButton';
+import { ENABLE_PICKER_ALERTS } from '@/config/featureFlags';
 import {
   Dialog,
   DialogContent,
@@ -249,8 +250,8 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
       const [snapshots, backtests, rules, logs] = await Promise.all([
         fetchRecentResultSnapshots(strategyId),
         fetchRecentBacktests(strategyId),
-        fetchAlertRules(strategyId),
-        fetchRecentAlertLogs(strategyId),
+        ENABLE_PICKER_ALERTS ? fetchAlertRules(strategyId) : Promise.resolve([]),
+        ENABLE_PICKER_ALERTS ? fetchRecentAlertLogs(strategyId) : Promise.resolve([]),
       ]);
       setResultSnapshots(snapshots);
       setBacktestHistory(backtests);
@@ -534,6 +535,11 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
   });
 
   const handleCreateAlertRule = async () => {
+    if (!ENABLE_PICKER_ALERTS) {
+      toast.info('预警功能已关闭。');
+      return;
+    }
+
     if (activeStrategyId === null || !activeStrategyName) {
       toast.info('请先回填一个已保存策略，再创建预警规则。');
       return;
@@ -546,6 +552,11 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
   };
 
   const handleToggleAlertRule = async (rule: PickerAlertRuleRow) => {
+    if (!ENABLE_PICKER_ALERTS) {
+      toast.info('预警功能已关闭。');
+      return;
+    }
+
     const updated = await updateAlertRuleStatus(rule.id, !rule.is_active);
     if (!updated) {
       toast.error('预警规则更新失败。');
@@ -558,6 +569,11 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
   };
 
   const handleMarkAlertRead = async (log: PickerAlertLogRow) => {
+    if (!ENABLE_PICKER_ALERTS) {
+      toast.info('预警功能已关闭。');
+      return;
+    }
+
     if (log.is_read) return;
     const updated = await markAlertLogRead(log.id);
     if (!updated) {
@@ -571,6 +587,11 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
   };
 
   const handleCreateDefaultAlertRule = async () => {
+    if (!ENABLE_PICKER_ALERTS) {
+      toast.info('预警功能已关闭。');
+      return;
+    }
+
     if (activeStrategyId === null || !activeStrategyName) return;
 
     const created = await createDefaultAlertRule(activeStrategyId, activeStrategyName);
@@ -584,6 +605,11 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
   };
 
   const handleSubmitAlertRule = async () => {
+    if (!ENABLE_PICKER_ALERTS) {
+      toast.info('预警功能已关闭。');
+      return;
+    }
+
     if (activeStrategyId === null) return;
     if (!alertForm.name.trim()) {
       toast.error('请输入规则名称。');
@@ -683,6 +709,11 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
     });
 
   const handleRunAlertScan = async () => {
+    if (!ENABLE_PICKER_ALERTS) {
+      toast.info('预警功能已关闭。');
+      return;
+    }
+
     if (activeStrategyId === null) {
       toast.info('请先激活一个已保存策略。');
       return;
@@ -1012,23 +1043,28 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
                 <Bell className="w-5 h-5 text-blue-600" />
                 <h3 className="text-lg font-semibold text-foreground">策略工作台</h3>
                 <Badge variant="outline" className="text-[11px]">{activeStrategyName}</Badge>
+                {!ENABLE_PICKER_ALERTS && <Badge variant="secondary" className="text-[11px]">预警已关闭</Badge>}
               </div>
-              <div className="text-xs text-muted-foreground mt-1">查看最近落库结果、快速回测历史和应用内预警状态</div>
+              <div className="text-xs text-muted-foreground mt-1">查看最近落库结果和快速回测历史{ENABLE_PICKER_ALERTS ? '，以及应用内预警状态' : ''}</div>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" className="border-border text-muted-foreground hover:bg-muted" onClick={() => void loadStrategyWorkspace(activeStrategyId)}>
                 刷新工作台
               </Button>
-              <Button variant="outline" size="sm" className="border-border text-muted-foreground hover:bg-muted" onClick={() => void handleRunAlertScan()} disabled={isRunningAlertScan}>
-                <Siren className="mr-1 h-3.5 w-3.5" />
-                {isRunningAlertScan ? '扫描中...' : '立即扫描'}
-              </Button>
-              <Button variant="outline" size="sm" className="border-border text-muted-foreground hover:bg-muted" onClick={() => void handleCreateDefaultAlertRule()}>
-                默认预警
-              </Button>
-              <Button variant="outline" size="sm" className="border-border text-muted-foreground hover:bg-muted" onClick={() => void handleCreateAlertRule()}>
-                新建预警
-              </Button>
+              {ENABLE_PICKER_ALERTS && (
+                <>
+                  <Button variant="outline" size="sm" className="border-border text-muted-foreground hover:bg-muted" onClick={() => void handleRunAlertScan()} disabled={isRunningAlertScan}>
+                    <Siren className="mr-1 h-3.5 w-3.5" />
+                    {isRunningAlertScan ? '扫描中...' : '立即扫描'}
+                  </Button>
+                  <Button variant="outline" size="sm" className="border-border text-muted-foreground hover:bg-muted" onClick={() => void handleCreateDefaultAlertRule()}>
+                    默认预警
+                  </Button>
+                  <Button variant="outline" size="sm" className="border-border text-muted-foreground hover:bg-muted" onClick={() => void handleCreateAlertRule()}>
+                    新建预警
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -1141,57 +1177,65 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="font-medium text-foreground">预警规则</div>
-                    <span className="text-xs text-muted-foreground">{alertRules.length} 条</span>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    {alertRules.length === 0 ? (
-                      <div className="text-muted-foreground">暂无预警规则。可以先创建默认新命中提醒。</div>
-                    ) : alertRules.map((rule) => (
-                      <div key={rule.id} className="rounded-md bg-background px-3 py-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="font-medium text-foreground">{rule.name}</div>
-                            <div className="text-xs text-muted-foreground">类型 {rule.alert_type} · 触发 {rule.trigger_count} 次</div>
-                            <div className="mt-1 text-xs text-muted-foreground">{summarizeAlertRule(rule)}</div>
-                          </div>
-                          <Button variant="outline" size="sm" className="h-7 border-border text-muted-foreground hover:bg-muted" onClick={() => void handleToggleAlertRule(rule)}>
-                            {rule.is_active ? '停用' : '启用'}
-                          </Button>
-                        </div>
+                {ENABLE_PICKER_ALERTS ? (
+                  <>
+                    <div className="rounded-lg border border-border bg-muted/20 p-3">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="font-medium text-foreground">预警规则</div>
+                        <span className="text-xs text-muted-foreground">{alertRules.length} 条</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      <div className="space-y-2 text-sm">
+                        {alertRules.length === 0 ? (
+                          <div className="text-muted-foreground">暂无预警规则。可以先创建默认新命中提醒。</div>
+                        ) : alertRules.map((rule) => (
+                          <div key={rule.id} className="rounded-md bg-background px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="font-medium text-foreground">{rule.name}</div>
+                                <div className="text-xs text-muted-foreground">类型 {rule.alert_type} · 触发 {rule.trigger_count} 次</div>
+                                <div className="mt-1 text-xs text-muted-foreground">{summarizeAlertRule(rule)}</div>
+                              </div>
+                              <Button variant="outline" size="sm" className="h-7 border-border text-muted-foreground hover:bg-muted" onClick={() => void handleToggleAlertRule(rule)}>
+                                {rule.is_active ? '停用' : '启用'}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="font-medium text-foreground">最近预警</div>
-                    <span className="text-xs text-muted-foreground">{alertLogs.length} 条</span>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    {alertLogs.length === 0 ? (
-                      <div className="text-muted-foreground">暂无预警日志。等规则跑出命中后会在这里展示。</div>
-                    ) : alertLogs.map((log) => (
-                      <div key={log.id} className={cn('rounded-md px-3 py-2', log.is_read ? 'bg-background' : 'bg-blue-50 dark:bg-blue-950/20')}>
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="font-medium text-foreground">{log.alert_title ?? `${log.name ?? log.ts_code} 触发预警`}</div>
-                            <div className="text-xs text-muted-foreground">{log.trade_date} · {log.ts_code}</div>
-                          </div>
-                          {!log.is_read && (
-                            <Button variant="outline" size="sm" className="h-7 border-border text-muted-foreground hover:bg-muted" onClick={() => void handleMarkAlertRead(log)}>
-                              标为已读
-                            </Button>
-                          )}
-                        </div>
-                        {log.alert_content && <div className="mt-1 text-xs text-muted-foreground">{log.alert_content}</div>}
+                    <div className="rounded-lg border border-border bg-muted/20 p-3">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="font-medium text-foreground">最近预警</div>
+                        <span className="text-xs text-muted-foreground">{alertLogs.length} 条</span>
                       </div>
-                    ))}
+                      <div className="space-y-2 text-sm">
+                        {alertLogs.length === 0 ? (
+                          <div className="text-muted-foreground">暂无预警日志。等规则跑出命中后会在这里展示。</div>
+                        ) : alertLogs.map((log) => (
+                          <div key={log.id} className={cn('rounded-md px-3 py-2', log.is_read ? 'bg-background' : 'bg-blue-50 dark:bg-blue-950/20')}>
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="font-medium text-foreground">{log.alert_title ?? `${log.name ?? log.ts_code} 触发预警`}</div>
+                                <div className="text-xs text-muted-foreground">{log.trade_date} · {log.ts_code}</div>
+                              </div>
+                              {!log.is_read && (
+                                <Button variant="outline" size="sm" className="h-7 border-border text-muted-foreground hover:bg-muted" onClick={() => void handleMarkAlertRead(log)}>
+                                  标为已读
+                                </Button>
+                              )}
+                            </div>
+                            {log.alert_content && <div className="mt-1 text-xs text-muted-foreground">{log.alert_content}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border bg-muted/10 p-4 text-sm text-muted-foreground">
+                    预警功能已暂时关闭，当前工作台不再请求预警规则和预警日志。
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -1431,91 +1475,93 @@ export function StockScreener({ onSelectStock }: { onSelectStock?: (tsCode: stri
       {!isSearching && !errorMessage && hasSearched && sortedResults.length === 0 && renderEmptyState()}
       {!isSearching && !errorMessage && sortedResults.length > 0 && renderResults()}
 
-      <Dialog open={isAlertDialogOpen} onOpenChange={setIsAlertDialogOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>新建预警规则</DialogTitle>
-            <DialogDescription>为当前激活策略配置应用内预警条件。</DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
-              <div className="text-sm text-muted-foreground">规则名称</div>
-              <Input value={alertForm.name} onChange={(event) => setAlertForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="例如：评分突破提醒" />
-            </div>
-            <div className="space-y-2">
-              <div className="text-sm text-muted-foreground">预警类型</div>
-              <Select value={alertForm.alertType} onValueChange={(value) => setAlertForm((prev) => ({ ...prev, alertType: value as AlertType }))}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择预警类型" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="new_match">新命中</SelectItem>
-                  <SelectItem value="score_change">评分变化</SelectItem>
-                  <SelectItem value="price_threshold">价格阈值</SelectItem>
-                  <SelectItem value="technical_signal">技术信号</SelectItem>
-                  <SelectItem value="volume_spike">成交量放大</SelectItem>
-                  <SelectItem value="rank_change">排名变化</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <div className="text-sm text-muted-foreground">回看天数</div>
-              <Input type="number" value={alertForm.lookbackDays} onChange={(event) => setAlertForm((prev) => ({ ...prev, lookbackDays: event.target.value }))} />
-            </div>
-            {(alertForm.alertType === 'score_change' || alertForm.alertType === 'price_threshold' || alertForm.alertType === 'volume_spike') && (
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">阈值</div>
-                <Input type="number" value={alertForm.threshold} onChange={(event) => setAlertForm((prev) => ({ ...prev, threshold: event.target.value }))} placeholder="例如：5" />
+      {ENABLE_PICKER_ALERTS && (
+        <Dialog open={isAlertDialogOpen} onOpenChange={setIsAlertDialogOpen}>
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>新建预警规则</DialogTitle>
+              <DialogDescription>为当前激活策略配置应用内预警条件。</DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <div className="text-sm text-muted-foreground">规则名称</div>
+                <Input value={alertForm.name} onChange={(event) => setAlertForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="例如：评分突破提醒" />
               </div>
-            )}
-            {alertForm.alertType === 'rank_change' && (
               <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">排名阈值</div>
-                <Input type="number" value={alertForm.rankThreshold} onChange={(event) => setAlertForm((prev) => ({ ...prev, rankThreshold: event.target.value }))} placeholder="例如：10" />
-              </div>
-            )}
-            {alertForm.alertType === 'technical_signal' && (
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">技术信号</div>
-                <Select value={alertForm.technicalSignal} onValueChange={(value) => setAlertForm((prev) => ({ ...prev, technicalSignal: value }))}>
+                <div className="text-sm text-muted-foreground">预警类型</div>
+                <Select value={alertForm.alertType} onValueChange={(value) => setAlertForm((prev) => ({ ...prev, alertType: value as AlertType }))}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="选择技术信号" />
+                    <SelectValue placeholder="选择预警类型" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="macd_golden">MACD金叉</SelectItem>
-                    <SelectItem value="kdj_oversold">KDJ超卖</SelectItem>
-                    <SelectItem value="ma_bull">均线多头</SelectItem>
-                    <SelectItem value="boll_break">布林突破</SelectItem>
-                    <SelectItem value="volume_burst">放量上涨</SelectItem>
-                    <SelectItem value="break_high">突破新高</SelectItem>
+                    <SelectItem value="new_match">新命中</SelectItem>
+                    <SelectItem value="score_change">评分变化</SelectItem>
+                    <SelectItem value="price_threshold">价格阈值</SelectItem>
+                    <SelectItem value="technical_signal">技术信号</SelectItem>
+                    <SelectItem value="volume_spike">成交量放大</SelectItem>
+                    <SelectItem value="rank_change">排名变化</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            )}
-            <div className="space-y-2">
-              <div className="text-sm text-muted-foreground">检查间隔（秒）</div>
-              <Input type="number" value={alertForm.checkInterval} onChange={(event) => setAlertForm((prev) => ({ ...prev, checkInterval: event.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <div className="text-sm text-muted-foreground">冷却时间（分钟）</div>
-              <Input type="number" value={alertForm.cooldown} onChange={(event) => setAlertForm((prev) => ({ ...prev, cooldown: event.target.value }))} />
-            </div>
-            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 md:col-span-2">
-              <div>
-                <div className="text-sm text-foreground">应用内提醒</div>
-                <div className="text-xs text-muted-foreground">当前默认只启用站内提醒</div>
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">回看天数</div>
+                <Input type="number" value={alertForm.lookbackDays} onChange={(event) => setAlertForm((prev) => ({ ...prev, lookbackDays: event.target.value }))} />
               </div>
-              <Switch checked={alertForm.inApp} onCheckedChange={(checked) => setAlertForm((prev) => ({ ...prev, inApp: checked }))} />
+              {(alertForm.alertType === 'score_change' || alertForm.alertType === 'price_threshold' || alertForm.alertType === 'volume_spike') && (
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">阈值</div>
+                  <Input type="number" value={alertForm.threshold} onChange={(event) => setAlertForm((prev) => ({ ...prev, threshold: event.target.value }))} placeholder="例如：5" />
+                </div>
+              )}
+              {alertForm.alertType === 'rank_change' && (
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">排名阈值</div>
+                  <Input type="number" value={alertForm.rankThreshold} onChange={(event) => setAlertForm((prev) => ({ ...prev, rankThreshold: event.target.value }))} placeholder="例如：10" />
+                </div>
+              )}
+              {alertForm.alertType === 'technical_signal' && (
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">技术信号</div>
+                  <Select value={alertForm.technicalSignal} onValueChange={(value) => setAlertForm((prev) => ({ ...prev, technicalSignal: value }))}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="选择技术信号" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="macd_golden">MACD金叉</SelectItem>
+                      <SelectItem value="kdj_oversold">KDJ超卖</SelectItem>
+                      <SelectItem value="ma_bull">均线多头</SelectItem>
+                      <SelectItem value="boll_break">布林突破</SelectItem>
+                      <SelectItem value="volume_burst">放量上涨</SelectItem>
+                      <SelectItem value="break_high">突破新高</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">检查间隔（秒）</div>
+                <Input type="number" value={alertForm.checkInterval} onChange={(event) => setAlertForm((prev) => ({ ...prev, checkInterval: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">冷却时间（分钟）</div>
+                <Input type="number" value={alertForm.cooldown} onChange={(event) => setAlertForm((prev) => ({ ...prev, cooldown: event.target.value }))} />
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 md:col-span-2">
+                <div>
+                  <div className="text-sm text-foreground">应用内提醒</div>
+                  <div className="text-xs text-muted-foreground">当前默认只启用站内提醒</div>
+                </div>
+                <Switch checked={alertForm.inApp} onCheckedChange={(checked) => setAlertForm((prev) => ({ ...prev, inApp: checked }))} />
+              </div>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAlertDialogOpen(false)} className="border-border text-muted-foreground hover:bg-muted">取消</Button>
-            <Button onClick={() => void handleSubmitAlertRule()} disabled={isSubmittingAlertRule} className="bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200">
-              {isSubmittingAlertRule ? '提交中...' : '创建规则'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAlertDialogOpen(false)} className="border-border text-muted-foreground hover:bg-muted">取消</Button>
+              <Button onClick={() => void handleSubmitAlertRule()} disabled={isSubmittingAlertRule} className="bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200">
+                {isSubmittingAlertRule ? '提交中...' : '创建规则'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Dialog open={selectedBacktest !== null} onOpenChange={(open) => {
         if (!open) {

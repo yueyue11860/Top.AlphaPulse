@@ -5,9 +5,11 @@ export {
   // 接口类型
   type StockDetailBundle,
   type StockQuoteItem,
+  type StockQuoteSnapshot,
   // 数据获取函数
   fetchStockList,
   fetchStockListWithQuotes,
+  fetchStockQuoteItemsByCodes,
   fetchStockDetail,
   fetchRealtimeQuote,
   fetchKLineData,
@@ -17,6 +19,7 @@ export {
   fetchStockDetailBundle,
   fetchMoneyFlow,
   fetchStrategies,
+  mapSnapshotToStockQuoteItem,
   saveStrategy,
   searchStocks,
 } from './stockService';

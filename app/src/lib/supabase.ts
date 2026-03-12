@@ -148,6 +148,31 @@ export const FEATURED_NEWS_TABLES = [
   'eastmoney724_tb',
 ];
 
+export interface QuoteLatestSnapshotRow {
+  ts_code: string;
+  symbol: string;
+  name: string;
+  industry: string;
+  market: string;
+  quote_date: string;
+  quote_time: string;
+  fetch_time: string | null;
+  price: number;
+  change_pct: number;
+  change_amount: number;
+  open: number;
+  high: number;
+  low: number;
+  pre_close: number;
+  volume: number;
+  amount: number;
+  turnover_rate: number;
+  pe_ttm: number;
+  pb: number;
+  total_mv: number;
+  source: string;
+}
+
 // 存储活跃的 Realtime 订阅通道
 const activeChannels: Map<string, RealtimeChannel> = new Map();
 
@@ -233,6 +258,39 @@ export function subscribeToNewsTables(
  */
 export function getActiveSubscriptionCount(): number {
   return activeChannels.size;
+}
+
+export function subscribeToQuoteLatestSnapshots(
+  tsCodes: string[],
+  onUpsert: (row: QuoteLatestSnapshotRow) => void,
+): () => void {
+  const codes = Array.from(new Set(tsCodes.filter(Boolean)));
+  if (codes.length === 0) return () => undefined;
+
+  const channels = codes.map((tsCode) => (
+    supabaseStock
+      .channel(`quote-latest-snapshot-${tsCode}-${Math.random().toString(36).slice(2, 8)}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'quote_latest_snapshot',
+          filter: `ts_code=eq.${tsCode}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'DELETE') return;
+          onUpsert(payload.new as QuoteLatestSnapshotRow);
+        },
+      )
+      .subscribe()
+  ));
+
+  return () => {
+    channels.forEach((channel) => {
+      supabaseStock.removeChannel(channel);
+    });
+  };
 }
 
 export default supabase;

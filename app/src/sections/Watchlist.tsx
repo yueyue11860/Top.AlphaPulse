@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FolderPlus, LogIn, MoreHorizontal, Pencil, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -22,6 +22,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatLargeNumber, formatNumber, getChangeColor } from '@/lib/utils';
+import { isCnMarketTradingSession } from '@/lib/marketTime';
+import { useVisibleStockCodes } from '@/hooks/useVisibleStockCodes';
+import { useLiveQuoteSnapshots } from '@/hooks/useLiveQuoteSnapshots';
 import { useWatchlist } from '@/contexts/WatchlistContext';
 
 type SortKey = 'added_desc' | 'added_asc' | 'change_desc' | 'change_asc' | 'name_asc';
@@ -34,6 +37,7 @@ export function Watchlist({ onSelectStock }: { onSelectStock?: (tsCode: string) 
     isAuthenticated,
     openAuthDialog,
     refresh,
+    applySnapshotQuotes,
     createGroup,
     renameGroup,
     deleteGroup,
@@ -76,6 +80,16 @@ export function Watchlist({ onSelectStock }: { onSelectStock?: (tsCode: string) 
 
     return nextItems;
   }, [activeGroupId, items, keyword, sortKey]);
+
+  const { containerRef, visibleCodes } = useVisibleStockCodes(filteredItems.map((item) => item.tsCode), { fallbackCount: 16 });
+  const handleSnapshotQuotes = useCallback((quotes: import('@/services/stockDetailService').StockQuoteItem[]) => {
+    applySnapshotQuotes(quotes);
+  }, [applySnapshotQuotes]);
+
+  useLiveQuoteSnapshots(visibleCodes, handleSnapshotQuotes, {
+    enabled: isAuthenticated && isCnMarketTradingSession() && filteredItems.length > 0,
+    pollIntervalMs: 5_000,
+  });
 
   const activeGroup = groups.find((group) => group.id === editingGroupId) ?? null;
 
@@ -187,7 +201,7 @@ export function Watchlist({ onSelectStock }: { onSelectStock?: (tsCode: string) 
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-1 gap-3" ref={containerRef as React.RefObject<HTMLDivElement>}>
         {isLoading ? (
           Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-28 w-full" />)
         ) : filteredItems.length === 0 ? (
@@ -196,7 +210,7 @@ export function Watchlist({ onSelectStock }: { onSelectStock?: (tsCode: string) 
           </Card>
         ) : (
           filteredItems.map((item) => (
-            <Card key={item.id} className="border-border p-4 transition-colors hover:bg-muted/20">
+            <Card key={item.id} data-stock-code={item.tsCode} className="border-border p-4 transition-colors hover:bg-muted/20">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <button
                   type="button"

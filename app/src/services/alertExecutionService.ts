@@ -1,3 +1,5 @@
+import { ENABLE_PICKER_ALERTS } from '@/config/featureFlags';
+
 interface AlertScanResponse {
   scannedRules: number;
   triggeredRules: number;
@@ -5,6 +7,14 @@ interface AlertScanResponse {
 }
 
 export async function runAlertScan(strategyId?: number): Promise<AlertScanResponse> {
+  if (!ENABLE_PICKER_ALERTS) {
+    return {
+      scannedRules: 0,
+      triggeredRules: 0,
+      insertedLogs: 0,
+    };
+  }
+
   const response = await fetch('/api/picker-alert/run', {
     method: 'POST',
     headers: {

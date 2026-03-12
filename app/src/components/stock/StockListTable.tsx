@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import useSWR from 'swr';
 import { cn, formatNumber, getChangeColor, formatLargeNumber, formatVolumeHand, formatMarketCap } from '@/lib/utils';
+import { isCnMarketTradingSession } from '@/lib/marketTime';
+import { useVisibleStockCodes } from '@/hooks/useVisibleStockCodes';
+import { useLiveQuoteSnapshots } from '@/hooks/useLiveQuoteSnapshots';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -48,13 +51,15 @@ export function StockListTable({ onSelectStock }: StockListTableProps) {
     sortOrder
   } as const;
 
-  const { data, isLoading } = useSWR(
+  const { data, isLoading, mutate } = useSWR(
     ['stock:list:quotes', queryParams],
     () => fetchStockListWithQuotes(queryParams),
     {
       dedupingInterval: 10_000,
-      revalidateOnFocus: false,
+      refreshInterval: isCnMarketTradingSession() ? 15_000 : 0,
+      revalidateOnFocus: true,
       revalidateOnReconnect: false,
+      refreshWhenHidden: false,
       keepPreviousData: true,
     }
   );
@@ -63,6 +68,54 @@ export function StockListTable({ onSelectStock }: StockListTableProps) {
   const totalCount = data?.total || 0;
   const loading = isLoading && !data;
   const totalPages = Math.ceil(totalCount / pageSize);
+  const { containerRef, visibleCodes } = useVisibleStockCodes(stocks.map((stock) => stock.ts_code), { fallbackCount: pageSize });
+
+  const applySnapshotQuotes = useCallback((quotes: StockQuoteItem[]) => {
+    if (quotes.length === 0) return;
+
+    const quoteMap = new Map(quotes.map((quote) => [quote.ts_code, quote]));
+    void mutate((current: { data: StockQuoteItem[]; total: number } | undefined) => {
+      if (!current?.data?.length) return current;
+
+      let hasChanged = false;
+      const nextData = current.data.map((item: StockQuoteItem) => {
+        const quote = quoteMap.get(item.ts_code);
+        if (!quote) return item;
+
+        if (
+          quote.close !== item.close ||
+          quote.change !== item.change ||
+          quote.pct_chg !== item.pct_chg ||
+          quote.vol !== item.vol ||
+          quote.amount !== item.amount ||
+          quote.open !== item.open ||
+          quote.high !== item.high ||
+          quote.low !== item.low ||
+          quote.pre_close !== item.pre_close ||
+          quote.turnover_rate !== item.turnover_rate ||
+          quote.pe_ttm !== item.pe_ttm ||
+          quote.total_mv !== item.total_mv ||
+          quote.trade_date !== item.trade_date
+        ) {
+          hasChanged = true;
+          return { ...item, ...quote };
+        }
+
+        return item;
+      });
+
+      if (!hasChanged) return current;
+      return {
+        ...current,
+        data: nextData,
+      };
+    }, { revalidate: false });
+  }, [mutate]);
+
+  useLiveQuoteSnapshots(visibleCodes, applySnapshotQuotes, {
+    enabled: isCnMarketTradingSession() && stocks.length > 0,
+    pollIntervalMs: 5_000,
+  });
 
   // 搜索处理
   const handleSearch = () => {
@@ -204,7 +257,7 @@ export function StockListTable({ onSelectStock }: StockListTableProps) {
       </div>
 
       {/* 表格 */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" ref={containerRef as React.RefObject<HTMLDivElement>}>
         <Table>
           <TableHeader>
             <TableRow className="bg-muted hover:bg-muted">
@@ -285,6 +338,7 @@ export function StockListTable({ onSelectStock }: StockListTableProps) {
               stocks.map((stock) => (
                 <TableRow 
                   key={stock.ts_code}
+                  data-stock-code={stock.ts_code}
                   className="cursor-pointer hover:bg-blue-50"
                   onClick={() => onSelectStock(stock.ts_code)}
                 >

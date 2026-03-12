@@ -1,6 +1,7 @@
 import { logger, supabaseStock } from './serviceUtils';
 import type { QuickBacktestResult } from './backtestService';
 import type { StockScreenerResultItem } from './screenerService';
+import { ENABLE_PICKER_ALERTS } from '@/config/featureFlags';
 import type {
   PickerAlertLogRow,
   PickerAlertRuleRow,
@@ -48,6 +49,10 @@ interface BacktestDetail {
 interface UnreadAlertSummary {
   unreadCount: number;
   logs: PickerAlertLogRow[];
+}
+
+function isPickerAlertEnabled(): boolean {
+  return ENABLE_PICKER_ALERTS;
 }
 
 function normalizeDate(date: string | null): string | null {
@@ -367,6 +372,8 @@ export async function fetchBacktestDetail(backtestId: number): Promise<BacktestD
 }
 
 export async function fetchAlertRules(strategyId: number): Promise<PickerAlertRuleRow[]> {
+  if (!isPickerAlertEnabled()) return [];
+
   try {
     const { data, error } = await supabaseStock
       .from('picker_alert_rule')
@@ -395,6 +402,8 @@ export async function createDefaultAlertRule(strategyId: number, strategyName: s
 }
 
 export async function createAlertRule(params: CreateAlertRuleParams): Promise<PickerAlertRuleRow | null> {
+  if (!isPickerAlertEnabled()) return null;
+
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabaseStock as any)
@@ -422,6 +431,8 @@ export async function createAlertRule(params: CreateAlertRuleParams): Promise<Pi
 }
 
 export async function updateAlertRuleStatus(ruleId: string, isActive: boolean): Promise<boolean> {
+  if (!isPickerAlertEnabled()) return false;
+
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabaseStock as any)
@@ -438,6 +449,8 @@ export async function updateAlertRuleStatus(ruleId: string, isActive: boolean): 
 }
 
 export async function fetchRecentAlertLogs(strategyId: number, limit = 10): Promise<PickerAlertLogRow[]> {
+  if (!isPickerAlertEnabled()) return [];
+
   const rules = await fetchAlertRules(strategyId);
   const ruleIds = rules.map((item) => item.id);
   if (ruleIds.length === 0) return [];
@@ -459,6 +472,8 @@ export async function fetchRecentAlertLogs(strategyId: number, limit = 10): Prom
 }
 
 export async function markAlertLogRead(logId: number): Promise<boolean> {
+  if (!isPickerAlertEnabled()) return false;
+
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabaseStock as any)
@@ -475,6 +490,13 @@ export async function markAlertLogRead(logId: number): Promise<boolean> {
 }
 
 export async function fetchUnreadAlertSummary(limit = 8): Promise<UnreadAlertSummary> {
+  if (!isPickerAlertEnabled()) {
+    return {
+      unreadCount: 0,
+      logs: [],
+    };
+  }
+
   try {
     const [{ count, error: countError }, { data, error: dataError }] = await Promise.all([
       supabaseStock

@@ -658,7 +658,18 @@ function StockDetailView({
     );
   }
 
-  const { change, pct_chg, close: currentPrice, pre_close: preClose } = stockData;
+  const { pct_chg, close: currentPrice, pre_close: preClose } = stockData;
+  const displayedPrice = currentPrice;
+  const displayedPreClose = preClose;
+  const displayedChange = stockData.change ?? (displayedPrice - displayedPreClose);
+  const displayedPctChg = displayedPreClose > 0
+    ? (displayedChange / displayedPreClose) * 100
+    : pct_chg;
+  const displayedOpen = stockData.open;
+  const displayedHigh = stockData.high;
+  const displayedLow = stockData.low;
+  const displayedVolume = stockData.vol;
+  const displayedAmount = stockData.amount;
   const watchThemeClassName = watchThemeEnabled ? getWatchThemeClassName(watchTheme.theme) : undefined;
   const statCardClassName = watchThemeEnabled ? WATCH_THEME_STAT_CARD_CLASS : 'bg-muted rounded-lg p-3';
   const primaryTabsListClassName = watchThemeEnabled ? WATCH_THEME_TAB_LIST_CLASS : 'w-full justify-start bg-muted';
@@ -772,15 +783,15 @@ function StockDetailView({
           </div>
 
           <div className="flex items-center gap-4">
-            <div className={cn('text-3xl font-bold font-mono', getChangeColor(change))}>
-              {formatNumber(currentPrice)}
+            <div className={cn('text-3xl font-bold font-mono', getChangeColor(displayedChange))}>
+              {formatNumber(displayedPrice)}
             </div>
             <div className="flex flex-col">
-              <span className={cn('text-sm font-mono', getChangeColor(change))}>
-                {change > 0 ? '+' : ''}{formatNumber(change)}
+              <span className={cn('text-sm font-mono', getChangeColor(displayedChange))}>
+                {displayedChange > 0 ? '+' : ''}{formatNumber(displayedChange)}
               </span>
-              <span className={cn('text-sm font-mono', getChangeColor(change))}>
-                {pct_chg > 0 ? '+' : ''}{pct_chg.toFixed(2)}%
+              <span className={cn('text-sm font-mono', getChangeColor(displayedChange))}>
+                {displayedPctChg > 0 ? '+' : ''}{displayedPctChg.toFixed(2)}%
               </span>
             </div>
           </div>
@@ -790,29 +801,29 @@ function StockDetailView({
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4 mt-4 pt-4 border-t border-border">
           <div>
             <div className="text-xs text-muted-foreground">今开</div>
-            <div className={cn('text-sm font-mono', getChangeColor(stockData.open - preClose))}>
-              {formatNumber(stockData.open)}
+            <div className={cn('text-sm font-mono', getChangeColor(displayedOpen - displayedPreClose))}>
+              {formatNumber(displayedOpen)}
             </div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">最高</div>
-            <div className="text-sm font-mono text-stock-up">{formatNumber(stockData.high)}</div>
+            <div className="text-sm font-mono text-stock-up">{formatNumber(displayedHigh)}</div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">最低</div>
-            <div className="text-sm font-mono text-stock-down">{formatNumber(stockData.low)}</div>
+            <div className="text-sm font-mono text-stock-down">{formatNumber(displayedLow)}</div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">昨收</div>
-            <div className="text-sm font-mono text-foreground">{formatNumber(preClose)}</div>
+            <div className="text-sm font-mono text-foreground">{formatNumber(displayedPreClose)}</div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">成交量</div>
-            <div className="text-sm font-mono text-foreground">{formatVolumeHand(stockData.vol)}</div>
+            <div className="text-sm font-mono text-foreground">{formatVolumeHand(displayedVolume)}</div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">成交额</div>
-            <div className="text-sm font-mono text-foreground">{formatLargeNumber(stockData.amount, 'qian')}</div>
+            <div className="text-sm font-mono text-foreground">{formatLargeNumber(displayedAmount, 'qian')}</div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">换手率</div>
