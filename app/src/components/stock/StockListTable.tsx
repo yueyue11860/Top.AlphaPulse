@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { cn, formatNumber, getChangeColor, formatLargeNumber, formatVolumeHand, formatMarketCap } from '@/lib/utils';
 import { isCnMarketTradingSession } from '@/lib/marketTime';
@@ -39,6 +39,7 @@ export function StockListTable({ onSelectStock }: StockListTableProps) {
   const [keyword, setKeyword] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [jumpPageInput, setJumpPageInput] = useState('1');
   const [sortBy, setSortBy] = useState<SortField>('amount');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   
@@ -69,6 +70,10 @@ export function StockListTable({ onSelectStock }: StockListTableProps) {
   const loading = isLoading && !data;
   const totalPages = Math.ceil(totalCount / pageSize);
   const { containerRef, visibleCodes } = useVisibleStockCodes(stocks.map((stock) => stock.ts_code), { fallbackCount: pageSize });
+
+  useEffect(() => {
+    setJumpPageInput(String(currentPage));
+  }, [currentPage]);
 
   const applySnapshotQuotes = useCallback((quotes: StockQuoteItem[]) => {
     if (quotes.length === 0) return;
@@ -150,6 +155,19 @@ export function StockListTable({ onSelectStock }: StockListTableProps) {
       : <ArrowUp className="w-4 h-4 ml-1 text-blue-500" />;
   };
 
+  const handleJumpToPage = () => {
+    if (totalPages === 0) return;
+
+    const parsedPage = Number.parseInt(jumpPageInput, 10);
+    if (Number.isNaN(parsedPage)) {
+      setJumpPageInput(String(currentPage));
+      return;
+    }
+
+    const nextPage = Math.min(Math.max(parsedPage, 1), totalPages);
+    setCurrentPage(nextPage);
+  };
+
   // 分页组件
   const renderPagination = () => (
     <div className="flex items-center justify-between px-4 py-3 border-t border-border">
@@ -157,7 +175,31 @@ export function StockListTable({ onSelectStock }: StockListTableProps) {
         共 <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> 只股票，
         第 <span className="font-medium text-foreground">{currentPage}</span> / {totalPages} 页
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>跳转到第</span>
+          <Input
+            value={jumpPageInput}
+            onChange={(event) => setJumpPageInput(event.target.value.replace(/\D/g, ''))}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                handleJumpToPage();
+              }
+            }}
+            className="h-8 w-20 text-center"
+            inputMode="numeric"
+            aria-label="跳转到指定页"
+          />
+          <span>页</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleJumpToPage}
+            disabled={totalPages === 0}
+          >
+            跳转
+          </Button>
+        </div>
         <Button
           variant="outline"
           size="sm"

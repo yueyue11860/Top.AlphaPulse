@@ -1420,10 +1420,12 @@ function RelatedEventSheet({
 // 主组件：股票列表 + 详情切换
 export function StockDetail({
   initialStockCode,
+  onSelectStock,
   onBack,
   onOpenNews,
 }: {
   initialStockCode?: string | null;
+  onSelectStock?: (tsCode: string) => void;
   onBack?: () => void;
   onOpenNews?: (tab: 'announcement' | 'report' | 'calendar', stockCode?: string | null) => void;
 }) {
@@ -1431,9 +1433,7 @@ export function StockDetail({
 
   // 当外部传入的 initialStockCode 变化时同步更新
   useEffect(() => {
-    if (initialStockCode) {
-      setSelectedStock(initialStockCode);
-    }
+    setSelectedStock(initialStockCode ?? null);
   }, [initialStockCode]);
 
   // 如果选中了股票，显示详情页
@@ -1462,7 +1462,7 @@ export function StockDetail({
           点击任意股票查看详情
         </div>
       </div>
-      <StockListTable onSelectStock={setSelectedStock} />
+      <StockListTable onSelectStock={onSelectStock ?? setSelectedStock} />
     </div>
   );
 }

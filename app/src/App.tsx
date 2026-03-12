@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { AuthPage } from '@/components/auth/AuthPage';
 import { Toaster } from '@/components/ui/sonner';
@@ -69,8 +69,15 @@ function isNewsNavigationEqual(left: NewsNavigationState | null, right: NewsNavi
   return left?.tab === right?.tab && left?.stockCode === right?.stockCode;
 }
 
-function parseRouteState(hash: string): RouteState {
+function normalizePathname(pathname: string): string {
+  const normalizedPath = pathname.replace(/\/+$/, '');
+  return normalizedPath || '/';
+}
+
+function parseLegacyHashRouteState(hash: string): RouteState | null {
   const normalizedHash = hash.startsWith('#') ? hash.slice(1) : hash;
+  if (!normalizedHash) return null;
+
   const [tabSegment, queryString = ''] = normalizedHash.split('?');
   const activeTab = isAppTab(tabSegment) ? tabSegment : 'market';
   const params = new URLSearchParams(queryString);
@@ -95,14 +102,54 @@ function parseRouteState(hash: string): RouteState {
   };
 }
 
-function buildRouteHash(routeState: RouteState): string {
-  const params = new URLSearchParams();
+function parseRouteState(pathname: string, search: string, hash = ''): RouteState {
+  const normalizedPathname = normalizePathname(pathname);
+  const pathSegments = normalizedPathname.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment));
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  const tabSegment = pathSegments[0] ?? 'market';
+  const activeTab = isAppTab(tabSegment) ? tabSegment : 'market';
+  const stockCodeFromPath = activeTab === 'stock' ? pathSegments[1] ?? null : null;
+  const stockCode = stockCodeFromPath ?? params.get('code');
+  const sourceTab = params.get('from');
+  const newsTab = params.get('tab');
 
-  if (routeState.activeTab === 'stock' && routeState.stockNavigation?.stockCode) {
-    params.set('code', routeState.stockNavigation.stockCode);
-    if (routeState.stockNavigation.sourceTab) {
-      params.set('from', routeState.stockNavigation.sourceTab);
-    }
+  if (activeTab === 'market' && normalizedPathname === '/' && hash) {
+    return parseLegacyHashRouteState(hash) ?? {
+      activeTab: 'market',
+      stockNavigation: null,
+      newsNavigation: null,
+    };
+  }
+
+  return {
+    activeTab,
+    stockNavigation: activeTab === 'stock' && stockCode
+      ? {
+          stockCode,
+          sourceTab: isStockSourceTab(sourceTab) ? sourceTab : null,
+        }
+      : null,
+    newsNavigation: activeTab === 'news' && isNewsTab(newsTab)
+      ? {
+          tab: newsTab,
+          stockCode,
+        }
+      : null,
+  };
+}
+
+function buildRouteUrl(routeState: RouteState): string {
+  const params = new URLSearchParams();
+  let pathname = '/';
+
+  if (routeState.activeTab === 'stock') {
+    pathname = routeState.stockNavigation?.stockCode
+      ? `/stock/${encodeURIComponent(routeState.stockNavigation.stockCode)}`
+      : '/stock';
+  } else if (routeState.activeTab === 'news') {
+    pathname = '/news';
+  } else if (routeState.activeTab !== 'market') {
+    pathname = `/${routeState.activeTab}`;
   }
 
   if (routeState.activeTab === 'news' && routeState.newsNavigation?.tab) {
@@ -113,7 +160,7 @@ function buildRouteHash(routeState: RouteState): string {
   }
 
   const query = params.toString();
-  return query ? `#${routeState.activeTab}?${query}` : `#${routeState.activeTab}`;
+  return query ? `${pathname}?${query}` : pathname;
 }
 
 function SectionFallback() {
@@ -139,12 +186,17 @@ function SectionFallback() {
 function AppShell() {
   const { user, isLoading: authLoading, isAuthDialogOpen, closeAuthDialog } = useAuth();
   const initialRouteState = useMemo(
-    () => parseRouteState(typeof window === 'undefined' ? '' : window.location.hash),
+    () => parseRouteState(
+      typeof window === 'undefined' ? '/' : window.location.pathname,
+      typeof window === 'undefined' ? '' : window.location.search,
+      typeof window === 'undefined' ? '' : window.location.hash,
+    ),
     [],
   );
   const [activeTab, setActiveTab] = useState<AppTab>(initialRouteState.activeTab);
   const [stockNavigation, setStockNavigation] = useState<StockNavigationState | null>(initialRouteState.stockNavigation);
   const [newsNavigation, setNewsNavigation] = useState<NewsNavigationState | null>(initialRouteState.newsNavigation);
+  const hasSyncedHistoryRef = useRef(false);
 
   const isProtectedTab = PROTECTED_TABS.includes(activeTab);
   const shouldShowAuthPage = !authLoading && !user && (isProtectedTab || isAuthDialogOpen);
@@ -153,7 +205,7 @@ function AppShell() {
     return PROTECTED_TAB_LABELS[activeTab];
   }, [activeTab, isProtectedTab]);
 
-  const syncRouteStateFromHash = useCallback((nextRouteState: RouteState) => {
+  const syncRouteStateFromLocation = useCallback((nextRouteState: RouteState) => {
     setActiveTab((currentTab) => (currentTab === nextRouteState.activeTab ? currentTab : nextRouteState.activeTab));
     setStockNavigation((currentNavigation) => (
       isStockNavigationEqual(currentNavigation, nextRouteState.stockNavigation)
@@ -170,26 +222,36 @@ function AppShell() {
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
-    const handleHashChange = () => {
-      syncRouteStateFromHash(parseRouteState(window.location.hash));
+    const handlePopState = () => {
+      syncRouteStateFromLocation(parseRouteState(window.location.pathname, window.location.search, window.location.hash));
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [syncRouteStateFromHash]);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [syncRouteStateFromLocation]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const nextHash = buildRouteHash({
+    const nextUrl = buildRouteUrl({
       activeTab,
       stockNavigation,
       newsNavigation,
     });
+    const currentUrl = `${normalizePathname(window.location.pathname)}${window.location.search}`;
 
-    if (window.location.hash !== nextHash) {
-      window.location.hash = nextHash;
+    if (currentUrl === nextUrl) {
+      hasSyncedHistoryRef.current = true;
+      return;
     }
+
+    if (hasSyncedHistoryRef.current) {
+      window.history.pushState(window.history.state, '', nextUrl);
+      return;
+    }
+
+    window.history.replaceState(window.history.state, '', nextUrl);
+    hasSyncedHistoryRef.current = true;
   }, [activeTab, newsNavigation, stockNavigation]);
 
   const handleSelectStock = useCallback((tsCode: string) => {
@@ -256,6 +318,7 @@ function AppShell() {
         return (
           <StockDetail
             initialStockCode={stockNavigation?.stockCode ?? null}
+            onSelectStock={handleSelectStock}
             onBack={stockNavigation?.sourceTab ? handleBackFromStockDetail : undefined}
             onOpenNews={handleOpenNews}
           />
